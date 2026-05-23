@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stone Search</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="home">
+
+  <!-- AD TAB (flush left, full height, collapsible) -->
+  <aside class="ad-tab" id="ad-tab" aria-label="Advertisements">
+    <div class="ad-tab-header">
+      <span class="ad-tab-title">ad tab</span>
+      <button type="button" class="ad-tab-toggle" id="ad-tab-toggle" aria-label="Collapse ad tab" title="Collapse">
+        <span class="ad-tab-toggle-icon">&#9664;</span>
+      </button>
+    </div>
+    <div class="ad-tab-body">
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 1</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 2</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 3</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 4</span></div>
+    </div>
+    <div class="ad-tab-collapsed-label" aria-hidden="true">ad tab</div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="hero" id="main">
+    <h1 class="wordmark">Stone Search</h1>
+
+    <form id="search-form" class="search-panel" action="/results.html" method="get">
+      <div class="search-panel-inner">
+        <input
+          type="text"
+          name="q"
+          id="q"
+          class="search-input"
+          placeholder="Search the human web..."
+          autocomplete="off"
+          autofocus
+        />
+        <button type="submit" class="enter-btn">Enter</button>
+      </div>
+    </form>
+
+    <div class="filter-row">
+      <label>
+        <input type="checkbox" id="filter-enabled" checked />
+        <span>Hide results scoring over 25% AI-generated</span>
+      </label>
+      <label>
+        <input type="checkbox" id="flag-enabled" checked />
+        <span>Flag results scoring 5%-25% AI-generated</span>
+      </label>
+    </div>
+
+    <div class="hero-footer">
+      Stone Search BETA &middot; v0.3.0 &middot; &copy; 2026 Stone Tech LLC
+    </div>
+  </main>
+
+  <script src="/scripts/adtab.js"></script>
+  <script src="/scripts/home.js"></script>
+</body>
+</html>

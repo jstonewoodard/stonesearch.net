@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stone Search Results</title>
+  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+</head>
+<body class="results">
+
+  <!-- AD TAB (flush left, full height, collapsible) -->
+  <aside class="ad-tab" id="ad-tab" aria-label="Advertisements">
+    <div class="ad-tab-header">
+      <span class="ad-tab-title">ad tab</span>
+      <button type="button" class="ad-tab-toggle" id="ad-tab-toggle" aria-label="Collapse ad tab" title="Collapse">
+        <span class="ad-tab-toggle-icon">&#9664;</span>
+      </button>
+    </div>
+    <div class="ad-tab-body">
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 1</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 2</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 3</span></div>
+      <div class="ad-slot"><span class="ad-placeholder">Advertisement 4</span></div>
+    </div>
+    <div class="ad-tab-collapsed-label" aria-hidden="true">ad tab</div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="results-main" id="main">
+    <div class="results-header">
+      <a href="/" class="mini-wordmark">Stone Search</a>
+      <form id="results-form" class="search-panel results-search" action="/results.html" method="get">
+        <div class="search-panel-inner">
+          <input type="text" name="q" id="q" class="search-input" autocomplete="off" />
+          <button type="submit" class="enter-btn">Enter</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="results-meta">
+      <span id="result-stats">Loading...</span>
+      <span>
+        <label>
+          <input type="checkbox" id="filter-toggle" checked />
+          Filter &gt;25% AI
+        </label>
+        <label>
+          <input type="checkbox" id="flag-toggle" checked />
+          Flag 5-25% AI
+        </label>
+      </span>
+    </div>
+
+    <div id="filter-summary" class="filtered-banner" style="display:none;"></div>
+
+    <div id="results-list" class="results-list">
+      <div class="loading">Analyzing results for AI content...</div>
+    </div>
+  </main>
+
+  <script src="/scripts/adtab.js"></script>
+  <script src="/scripts/results.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "stonesearch.net",
+  "version": "0.1.0",
+  "description": "Stone Search — the human-only web search engine. A Win95-themed search front-end with built-in AI content filtering powered by Hive.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "author": "Stone Tech LLC",
+  "license": "UNLICENSED",
+  "private": true
+}

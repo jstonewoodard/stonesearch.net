@@ -1,0 +1,464 @@
+/* ============================================================
+   Stone Search v0.3 — Win95 chrome on Google-clean layout
+   - Teal full-page background
+   - Silver "Stone Search" wordmark, MS Sans Serif (Win95 font)
+   - Search bar wrapped in a Win95 silver panel, inset white input,
+     navy-blue Enter button on the right
+   - Ad Tab flush to the left edge, full height, collapsible
+   ============================================================ */
+
+:root {
+  --win-teal:         #008080;
+  --win-teal-dark:    #006666;
+  --win-silver:       #c0c0c0;
+  --win-silver-light: #dfdfdf;
+  --win-silver-dark:  #808080;
+  --win-navy:         #000080;
+  --win-navy-light:   #1084d0;   /* lighter highlight blue */
+  --win-white:        #ffffff;
+  --win-black:        #000000;
+  --win-yellow:       #ffff80;
+  --win-red:          #c00000;
+  --win-green:        #008000;
+
+  --adtab-width:           220px;
+  --adtab-width-collapsed: 28px;
+}
+
+* { box-sizing: border-box; }
+
+/* Kill native form rounding/styling globally — browsers round <input>
+   and <button> by default and that overrides border-radius: 0 unless
+   we strip the appearance entirely. */
+input, button, textarea, select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 0;
+  font-family: inherit;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--win-teal);
+  color: var(--win-black);
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Geneva, sans-serif;
+  font-size: 11px;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Load classic MS Sans Serif bitmap font from 98.css's CDN */
+@font-face {
+  font-family: 'Pixelated MS Sans Serif';
+  src: url('https://unpkg.com/98.css/dist/ms_sans_serif.woff2') format('woff2'),
+       url('https://unpkg.com/98.css/dist/ms_sans_serif.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Pixelated MS Sans Serif';
+  src: url('https://unpkg.com/98.css/dist/ms_sans_serif_bold.woff2') format('woff2'),
+       url('https://unpkg.com/98.css/dist/ms_sans_serif_bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* ============================================================
+   AD TAB — pinned to left edge, full viewport height
+   ============================================================ */
+.ad-tab {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--adtab-width);
+  background: var(--win-silver);
+  border: none;
+  border-radius: 0;
+  /* Sharp Win95 right edge: outer black + inner dark-grey shadow */
+  box-shadow:
+    inset -1px 0 0 var(--win-black),
+    inset -2px 0 0 var(--win-silver-dark),
+    inset  1px  1px 0 var(--win-white),
+    inset  2px  2px 0 var(--win-silver-light);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  transition: width 0.18s ease;
+}
+
+.ad-tab-header {
+  background: var(--win-navy);
+  color: var(--win-white);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 4px 6px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.ad-tab-title { padding-left: 2px; }
+
+.ad-tab-toggle {
+  background: var(--win-silver);
+  color: var(--win-black);
+  font-family: inherit;
+  font-size: 10px;
+  width: 22px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  padding: 0;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.ad-tab-toggle:active {
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+
+.ad-tab-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+}
+.ad-slot {
+  flex: 1;
+  min-height: 90px;
+  background: repeating-linear-gradient(
+    45deg,
+    #ffffff,
+    #ffffff 6px,
+    #f4f4f4 6px,
+    #f4f4f4 12px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--win-silver-dark);
+  font-size: 11px;
+  border-top:    2px solid var(--win-silver-dark);
+  border-left:   2px solid var(--win-silver-dark);
+  border-right:  2px solid var(--win-silver-light);
+  border-bottom: 2px solid var(--win-silver-light);
+}
+
+/* Collapsed-state strip (vertical "ad tab" label) */
+.ad-tab-collapsed-label {
+  display: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: var(--win-white);
+  background: var(--win-navy);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 12px 4px;
+  text-align: center;
+  letter-spacing: 1px;
+  flex: 1;
+}
+
+body.adtab-collapsed .ad-tab {
+  width: var(--adtab-width-collapsed);
+  cursor: pointer;
+}
+body.adtab-collapsed .ad-tab .ad-tab-title,
+body.adtab-collapsed .ad-tab .ad-tab-body {
+  display: none;
+}
+body.adtab-collapsed .ad-tab .ad-tab-header {
+  background: transparent;
+  padding: 4px 2px;
+  justify-content: center;
+}
+body.adtab-collapsed .ad-tab .ad-tab-collapsed-label {
+  display: block;
+}
+
+/* ============================================================
+   MAIN COLUMN — leaves room for the ad tab on the left
+   ============================================================ */
+.hero,
+.results-main {
+  margin-left: var(--adtab-width);
+  padding: 24px 32px;
+  transition: margin-left 0.18s ease;
+}
+body.adtab-collapsed .hero,
+body.adtab-collapsed .results-main {
+  margin-left: var(--adtab-width-collapsed);
+}
+
+/* ============================================================
+   HOMEPAGE HERO
+   ============================================================ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 14vh;
+}
+
+.wordmark {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-weight: normal;
+  font-size: 72px;
+  color: var(--win-silver);          /* same grey as "Advertisement 1" */
+  margin: 0 0 32px;
+  text-align: center;
+  line-height: 1;
+}
+
+/* ============================================================
+   SEARCH PANEL — authentic Win95 silver chrome
+   Uses the 98.css 4-layer bevel: outer 1px highlight/shadow,
+   inner 1px light-grey/dark-grey. Sharp square corners, no
+   drop shadow, no floating effects.
+   ============================================================ */
+.search-panel {
+  width: 100%;
+  max-width: 640px;
+  background: var(--win-silver);
+  padding: 6px;
+  border: none;
+  border-radius: 0;
+  /* Win95 outset bevel (no drop shadow) */
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.search-panel-inner {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+/* Sunken white text field — Win95 inset bevel */
+.search-input {
+  flex: 1;
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-size: 14px;
+  padding: 5px 7px;
+  background: var(--win-white);
+  color: var(--win-black);
+  border: none;
+  border-radius: 0;
+  outline: none;
+  /* Inset (sunken) bevel — reverse of the outset button */
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+.search-input::placeholder { color: #707070; }
+.search-input:focus { outline: 1px dotted var(--win-black); outline-offset: -4px; }
+
+/* Navy Win95 Enter button — solid uniform navy interior, no secondary
+   inner bevel colors. Only a sharp 1px black/white outline frames it. */
+.enter-btn {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--win-white);
+  background: var(--win-navy);
+  padding: 0 16px;
+  min-width: 70px;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  -webkit-font-smoothing: none;
+  /* Single 1px outline only — no inner lighter/darker shades */
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white);
+}
+.enter-btn:focus {
+  outline: 1px dotted var(--win-white);
+  outline-offset: -4px;
+}
+.enter-btn:active {
+  padding: 1px 15px 0 17px;
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black);
+}
+
+/* ============================================================
+   FILTER ROW
+   ============================================================ */
+.filter-row {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--win-white);
+  font-size: 11px;
+}
+.filter-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.filter-row input[type="checkbox"] { accent-color: var(--win-navy); }
+
+.hero-footer {
+  margin-top: auto;
+  padding-top: 40px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* ============================================================
+   RESULTS PAGE
+   ============================================================ */
+.results-main {
+  min-height: 100vh;
+  padding-top: 24px;
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.results-header .mini-wordmark {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-weight: normal;
+  font-size: 22px;
+  color: var(--win-silver);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.results-search { max-width: none; flex: 1; min-width: 280px; }
+
+.results-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.results-meta label { margin-left: 12px; cursor: pointer; user-select: none; }
+.results-meta input[type="checkbox"] { accent-color: var(--win-navy); margin-right: 4px; }
+
+.filtered-banner {
+  background: var(--win-yellow);
+  color: var(--win-black);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-top:    2px solid var(--win-silver-light);
+  border-left:   2px solid var(--win-silver-light);
+  border-right:  2px solid var(--win-silver-dark);
+  border-bottom: 2px solid var(--win-silver-dark);
+  font-size: 11px;
+}
+.filtered-banner a { color: var(--win-navy); }
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.result {
+  background: var(--win-white);
+  padding: 12px 16px;
+  border-top:    2px solid var(--win-silver-light);
+  border-left:   2px solid var(--win-silver-light);
+  border-right:  2px solid var(--win-silver-dark);
+  border-bottom: 2px solid var(--win-silver-dark);
+}
+.result .result-url {
+  color: var(--win-green);
+  font-size: 11px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.result .result-title a {
+  color: var(--win-navy);
+  font-size: 14px;
+  text-decoration: underline;
+  font-weight: normal;
+}
+.result .result-title a:visited { color: #551a8b; }
+.result .result-snippet {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.45;
+  color: var(--win-black);
+}
+
+.ai-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: normal;
+  vertical-align: middle;
+  border-top:    1px solid var(--win-silver-light);
+  border-left:   1px solid var(--win-silver-light);
+  border-right:  1px solid var(--win-silver-dark);
+  border-bottom: 1px solid var(--win-silver-dark);
+}
+.ai-badge.clean   { background: #d0ffd0; color: #006600; }
+.ai-badge.flagged { background: var(--win-yellow); color: #806000; }
+/* Subtle indicator for WARN_LOW (page score 0-10%). Gray dot, minimal weight. */
+.ai-badge.subtle  {
+  background: transparent;
+  color: #888;
+  border: none;
+  padding: 0 4px;
+  font-size: 12px;
+  cursor: help;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--win-white);
+  font-size: 12px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 700px) {
+  :root { --adtab-width: 180px; }
+  .wordmark { font-size: 48px; }
+  .hero { padding-top: 8vh; }
+  .results-header { gap: 12px; }
+  .results-header .mini-wordmark { font-size: 22px; }
+}
