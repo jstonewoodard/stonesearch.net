@@ -1,0 +1,10 @@
+/* Mock video results. aiLikely is the deepfake / AI-generation score. */
+module.exports = [
+  { title: "Master mason builds dry-stone wall (no narration)",          channel: "Old Crafts",            duration: "12:47", views: "1.2M", postedAt: "3 years ago", url: "https://youtube.com/watch?v=mock1",  thumbUrl: "https://picsum.photos/seed/vid1/320/180", aiLikely: 2 },
+  { title: "How marble is quarried in Carrara, Italy",                   channel: "Insider",               duration: "9:21",  views: "8.4M", postedAt: "5 years ago", url: "https://youtube.com/watch?v=mock2",  thumbUrl: "https://picsum.photos/seed/vid2/320/180", aiLikely: 3 },
+  { title: "AI-generated 'stone giant' fight scene [Sora]",              channel: "AI Cinema",             duration: "2:08",  views: "340K", postedAt: "2 weeks ago", url: "https://youtube.com/watch?v=mock3",  thumbUrl: "https://picsum.photos/seed/vid3/320/180", aiLikely: 96 },
+  { title: "Stonehenge documentary (BBC)",                               channel: "BBC Earth",             duration: "47:12", views: "12M",  postedAt: "8 years ago", url: "https://youtube.com/watch?v=mock4",  thumbUrl: "https://picsum.photos/seed/vid4/320/180", aiLikely: 1 },
+  { title: "DIY stone fireplace install — full build",                   channel: "This Old House",        duration: "23:55", views: "2.1M", postedAt: "4 years ago", url: "https://youtube.com/watch?v=mock5",  thumbUrl: "https://picsum.photos/seed/vid5/320/180", aiLikely: 4 },
+  { title: "Deepfake history lecturer 'explains' Stonehenge (FAKE)",     channel: "uploads_2024_archive",  duration: "5:32",  views: "44K",  postedAt: "6 months ago",url: "https://youtube.com/watch?v=mock6",  thumbUrl: "https://picsum.photos/seed/vid6/320/180", aiLikely: 89 },
+  { title: "Working with limestone — masonry tips",                      channel: "Trade Tips Daily",      duration: "8:09",  views: "560K", postedAt: "1 year ago",  url: "https://youtube.com/watch?v=mock7",  thumbUrl: "https://picsum.photos/seed/vid7/320/180", aiLikely: 6 },
+];
