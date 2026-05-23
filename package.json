@@ -5,13 +5,17 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {},
   "author": "Stone Tech LLC",
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^4.94.0"
+  }
 }
