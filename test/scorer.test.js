@@ -127,12 +127,23 @@ group('scorePage — verdict tiers', () => {
   });
 
   test('AI article, mid-confidence -> WARN_HIGH', () => {
+    // text=20, conf=0.8 -> dampened = 20*(0.5+0.4) = 18 -> WARN_HIGH
     const result = scorePage({
-      text:   { score: 30, confidence: 0.7, chars: 3000, backend: 'mock' },
+      text:   { score: 20, confidence: 0.8, chars: 3000, backend: 'mock' },
       images: [],
     });
     assert.equal(result.verdict, 'WARN_HIGH');
     assert.ok(result.aiScore >= 10 && result.aiScore <= 25, `expected 10-25, got ${result.aiScore}`);
+  });
+
+  test('Boundary: dampened 25.5 lands in BLOCK (proves >25 is strict)', () => {
+    // text=30, conf=0.7 -> 30 * 0.85 = 25.5 -> BLOCK
+    const result = scorePage({
+      text:   { score: 30, confidence: 0.7, chars: 3000, backend: 'mock' },
+      images: [],
+    });
+    assert.equal(result.verdict, 'BLOCK');
+    assert.equal(result.aiScore, 25.5);
   });
 
   test('Strong text signal -> override floors to 80 (BLOCK)', () => {

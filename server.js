@@ -21,6 +21,27 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const mockResults = require('./api/mock-results.js');
 
+// ---- Tab-specific mock datasets ----
+const mockImages   = require('./api/mock/images.js');
+const mockVideos   = require('./api/mock/videos.js');
+const mockNews     = require('./api/mock/news.js');
+const mockForums   = require('./api/mock/forums.js');
+const mockShopping = require('./api/mock/shopping.js');
+const mockMaps     = require('./api/mock/maps.js');
+const mockKnowledge = require('./api/mock/knowledge.js');
+const mockSidebar   = require('./api/mock/sidebar.js');
+
+const TABS = {
+  all:      mockResults,
+  web:      mockResults,
+  images:   mockImages,
+  videos:   mockVideos,
+  news:     mockNews,
+  forums:   mockForums,
+  shopping: mockShopping,
+  maps:     mockMaps,
+};
+
 // ---- AI filter v2 (text + image, weighted, four-tier verdict) ----
 const { createAnalyzer } = require('./api/ai-filter');
 const textHive  = require('./api/ai-filter/backends/text-hive.js');
@@ -55,6 +76,14 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/analyze' && req.method === 'POST') {
       return handleAnalyze(req, res);
     }
+    if (pathname === '/api/knowledge' && req.method === 'GET') {
+      const q = String(parsed.query.q || '').trim();
+      return sendJson(res, 200, { query: q, card: mockKnowledge.find(q) });
+    }
+    if (pathname === '/api/sidebar' && req.method === 'GET') {
+      const q = String(parsed.query.q || '').trim();
+      return sendJson(res, 200, { query: q, entities: mockSidebar.find(q) });
+    }
 
     // ---- STATIC FILES ----
     return serveStatic(pathname, res);
@@ -65,20 +94,26 @@ const server = http.createServer(async (req, res) => {
 });
 
 // -------------------- /api/search --------------------
+// Supports ?tab=all|images|videos|news|forums|shopping|maps
+// Returns the right mock dataset and (where applicable) ranks by query.
 function handleSearch(query, res) {
-  const q = String(query.q || '').trim();
-  if (!q) return sendJson(res, 200, { query: '', results: [] });
+  const q   = String(query.q   || '').trim();
+  const tab = String(query.tab || 'all').toLowerCase();
+  const dataset = TABS[tab] || TABS.all;
+  if (!q) return sendJson(res, 200, { query: '', tab, results: [] });
 
   const lower = q.toLowerCase();
-  const scored = mockResults.map(r => {
+  const scored = dataset.map(r => {
+    const haystack = [
+      r.title, r.snippet, r.name, r.channel, r.outlet, r.forum, r.seller, r.source
+    ].filter(Boolean).join(' ').toLowerCase();
     let score = 1;
-    if (r.title.toLowerCase().includes(lower))   score += 5;
-    if (r.snippet.toLowerCase().includes(lower)) score += 3;
+    if (haystack.includes(lower)) score += 5;
     return { ...r, _score: score };
   });
   scored.sort((a, b) => b._score - a._score);
   const out = scored.map(({ _score, ...rest }) => rest);
-  sendJson(res, 200, { query: q, results: out });
+  sendJson(res, 200, { query: q, tab, results: out });
 }
 
 // -------------------- /api/analyze --------------------
