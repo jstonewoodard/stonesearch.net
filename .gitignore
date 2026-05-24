@@ -25,3 +25,9 @@ build/
 *api-key*
 # Coordination & local-only notes
 _PM_COORDINATION.md
+
+# Business docs — keep local only, do not track in public repo
+docs/business/Stone_Tech_Business_Plan.docx
+docs/business/Stone_Tech_LLC_Formation_Guide.docx
+docs/business/Stone_Tech_LLC_Operating_Agreement.docx
+docs/business/Stone_Tech_Launch_Action_Plan.docx
