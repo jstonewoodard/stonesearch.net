@@ -1,0 +1,790 @@
+/* ============================================================
+   Stone Search v0.3 — Win95 chrome on Google-clean layout
+   - Teal full-page background
+   - Silver "Stone Search" wordmark, MS Sans Serif (Win95 font)
+   - Search bar wrapped in a Win95 silver panel, inset white input,
+     navy-blue Enter button on the right
+   - Ad Tab flush to the left edge, full height, collapsible
+   ============================================================ */
+:root {
+  --win-teal:         #008080;
+  --win-teal-dark:    #006666;
+  --win-silver:       #c0c0c0;
+  --win-silver-light: #dfdfdf;
+  --win-silver-dark:  #808080;
+  --win-navy:         #000080;
+  --win-navy-light:   #1084d0;   /* lighter highlight blue */
+  --win-white:        #ffffff;
+  --win-black:        #000000;
+  --win-yellow:       #ffff80;
+  --win-red:          #c00000;
+  --win-green:        #008000;
+  --adtab-width:           220px;
+  --adtab-width-collapsed: 28px;
+}
+* { box-sizing: border-box; }
+/* Kill native form rounding/styling globally — browsers round <input>
+   and <button> by default and that overrides border-radius: 0 unless
+   we strip the appearance entirely. */
+input, button, textarea, select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border-radius: 0;
+  font-family: inherit;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--win-teal);
+  color: var(--win-black);
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, Geneva, sans-serif;
+  font-size: 11px;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+/* Load classic MS Sans Serif bitmap font from 98.css's CDN */
+@font-face {
+  font-family: 'Pixelated MS Sans Serif';
+  src: url('https://unpkg.com/98.css/dist/ms_sans_serif.woff2') format('woff2'),
+       url('https://unpkg.com/98.css/dist/ms_sans_serif.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Pixelated MS Sans Serif';
+  src: url('https://unpkg.com/98.css/dist/ms_sans_serif_bold.woff2') format('woff2'),
+       url('https://unpkg.com/98.css/dist/ms_sans_serif_bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+}
+/* ============================================================
+   AD TAB — pinned to left edge, full viewport height
+   ============================================================ */
+.ad-tab {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--adtab-width);
+  background: var(--win-silver);
+  border: none;
+  border-radius: 0;
+  /* Sharp Win95 right edge: outer black + inner dark-grey shadow */
+  box-shadow:
+    inset -1px 0 0 var(--win-black),
+    inset -2px 0 0 var(--win-silver-dark),
+    inset  1px  1px 0 var(--win-white),
+    inset  2px  2px 0 var(--win-silver-light);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  transition: width 0.18s ease;
+}
+.ad-tab-header {
+  background: var(--win-navy);
+  color: var(--win-white);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 4px 6px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.ad-tab-title { padding-left: 2px; }
+.ad-tab-toggle {
+  background: var(--win-silver);
+  color: var(--win-black);
+  font-family: inherit;
+  font-size: 10px;
+  width: 22px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  padding: 0;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.ad-tab-toggle:active {
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+.ad-tab-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+}
+.ad-slot {
+  flex: 1;
+  min-height: 90px;
+  background: repeating-linear-gradient(
+    45deg,
+    #ffffff,
+    #ffffff 6px,
+    #f4f4f4 6px,
+    #f4f4f4 12px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--win-silver-dark);
+  font-size: 11px;
+  border-top:    2px solid var(--win-silver-dark);
+  border-left:   2px solid var(--win-silver-dark);
+  border-right:  2px solid var(--win-silver-light);
+  border-bottom: 2px solid var(--win-silver-light);
+}
+/* Collapsed-state strip (vertical "ad tab" label) */
+.ad-tab-collapsed-label {
+  display: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: var(--win-white);
+  background: var(--win-navy);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 12px 4px;
+  text-align: center;
+  letter-spacing: 1px;
+  flex: 1;
+}
+body.adtab-collapsed .ad-tab {
+  width: var(--adtab-width-collapsed);
+  cursor: pointer;
+}
+body.adtab-collapsed .ad-tab .ad-tab-title,
+body.adtab-collapsed .ad-tab .ad-tab-body {
+  display: none;
+}
+body.adtab-collapsed .ad-tab .ad-tab-header {
+  background: transparent;
+  padding: 4px 2px;
+  justify-content: center;
+}
+body.adtab-collapsed .ad-tab .ad-tab-collapsed-label {
+  display: block;
+}
+/* ============================================================
+   MAIN COLUMN — leaves room for the ad tab on the left
+   ============================================================ */
+.hero,
+.results-main {
+  margin-left: var(--adtab-width);
+  padding: 24px 32px;
+  transition: margin-left 0.18s ease;
+}
+body.adtab-collapsed .hero,
+body.adtab-collapsed .results-main {
+  margin-left: var(--adtab-width-collapsed);
+}
+/* ============================================================
+   HOMEPAGE HERO
+   ============================================================ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 14vh;
+}
+.wordmark {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-weight: normal;
+  font-size: 72px;
+  color: var(--win-silver);          /* same grey as "Advertisement 1" */
+  margin: 0 0 32px;
+  text-align: center;
+  line-height: 1;
+}
+/* ============================================================
+   SEARCH PANEL — authentic Win95 silver chrome
+   Uses the 98.css 4-layer bevel: outer 1px highlight/shadow,
+   inner 1px light-grey/dark-grey. Sharp square corners, no
+   drop shadow, no floating effects.
+   ============================================================ */
+.search-panel {
+  width: 100%;
+  max-width: 640px;
+  background: var(--win-silver);
+  padding: 6px;
+  border: none;
+  border-radius: 0;
+  /* Win95 outset bevel (no drop shadow) */
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.search-panel-inner {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+/* Sunken white text field — Win95 inset bevel */
+.search-input {
+  flex: 1;
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-size: 14px;
+  padding: 5px 7px;
+  background: var(--win-white);
+  color: var(--win-black);
+  border: none;
+  border-radius: 0;
+  outline: none;
+  /* Inset (sunken) bevel — reverse of the outset button */
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+.search-input::placeholder { color: #707070; }
+.search-input:focus { outline: 1px dotted var(--win-black); outline-offset: -4px; }
+/* Navy Win95 Enter button — solid uniform navy interior, no secondary
+   inner bevel colors. Only a sharp 1px black/white outline frames it. */
+.enter-btn {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--win-white);
+  background: var(--win-navy);
+  padding: 0 16px;
+  min-width: 70px;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  -webkit-font-smoothing: none;
+  /* Single 1px outline only — no inner lighter/darker shades */
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white);
+}
+.enter-btn:focus {
+  outline: 1px dotted var(--win-white);
+  outline-offset: -4px;
+}
+.enter-btn:active {
+  padding: 1px 15px 0 17px;
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black);
+}
+/* ============================================================
+   FILTER ROW
+   ============================================================ */
+.filter-row {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--win-white);
+  font-size: 11px;
+}
+.filter-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.filter-row input[type="checkbox"] { accent-color: var(--win-navy); }
+.hero-footer {
+  margin-top: auto;
+  padding-top: 40px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  text-align: center;
+}
+/* ============================================================
+   RESULTS PAGE
+   ============================================================ */
+.results-main {
+  min-height: 100vh;
+  padding-top: 24px;
+}
+.results-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.results-header .mini-wordmark {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-weight: normal;
+  font-size: 22px;
+  color: var(--win-silver);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.results-search { max-width: none; flex: 1; min-width: 280px; }
+.results-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.results-meta-controls { display: flex; gap: 10px; }
+.quiet-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.quiet-toggle input[type="checkbox"] { accent-color: var(--win-navy); margin: 0; }
+.quiet-toggle span { color: inherit; }
+.filtered-banner {
+  background: var(--win-yellow);
+  color: var(--win-black);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-top:    2px solid var(--win-silver-light);
+  border-left:   2px solid var(--win-silver-light);
+  border-right:  2px solid var(--win-silver-dark);
+  border-bottom: 2px solid var(--win-silver-dark);
+  font-size: 11px;
+}
+.filtered-banner a { color: var(--win-navy); }
+/* Outer panel that wraps the whole results list */
+.results-panel {
+  background: var(--win-white);
+  padding: 4px 16px;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.results-list { display: flex; flex-direction: column; }
+/* Individual results — no chrome, just spacing */
+.result {
+  padding: 14px 0;
+  border-bottom: 1px dotted var(--win-silver);
+  background: transparent;
+  box-shadow: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+.result:last-child { border-bottom: none; }
+.result .result-url {
+  color: var(--win-green);
+  font-size: 11px;
+  margin-bottom: 2px;
+  word-break: break-all;
+}
+.result .result-title a {
+  color: var(--win-navy);
+  font-size: 14px;
+  text-decoration: underline;
+  font-weight: normal;
+}
+.result .result-title a:visited { color: #551a8b; }
+.result .result-snippet {
+  font-size: 12px;
+  margin-top: 4px;
+  line-height: 1.45;
+  color: var(--win-black);
+}
+.ai-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: normal;
+  vertical-align: middle;
+  border-top:    1px solid var(--win-silver-light);
+  border-left:   1px solid var(--win-silver-light);
+  border-right:  1px solid var(--win-silver-dark);
+  border-bottom: 1px solid var(--win-silver-dark);
+}
+.ai-badge.clean   { background: #d0ffd0; color: #006600; }
+.ai-badge.flagged { background: var(--win-yellow); color: #806000; }
+/* Subtle indicator for WARN_LOW (page score 0-10%). Gray dot, minimal weight. */
+.ai-badge.subtle  {
+  background: transparent;
+  color: #888;
+  border: none;
+  padding: 0 4px;
+  font-size: 12px;
+  cursor: help;
+}
+.loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--win-white);
+  font-size: 12px;
+}
+/* ============================================================
+   TAB STRIP — compact Win95 tabs, 4 main + More dropdown
+   Right-aligned so the rightmost tab is flush with the
+   search bar / results panel's right edge.
+   ============================================================ */
+.tab-strip {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  justify-content: flex-end;
+}
+.tab-strip .tab {
+  font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
+  font-size: 11px;
+  color: var(--win-black);
+  background: var(--win-silver);
+  padding: 4px 14px;
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  top: 1px;
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+.tab-strip .tab:hover { background: var(--win-silver-light); }
+.tab-strip .tab.active {
+  background: var(--win-silver-light);
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+/* More dropdown */
+.tab-more { position: relative; }
+.tab-more-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 1px;
+  background: var(--win-silver);
+  min-width: 120px;
+  z-index: 40;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.tab-more-item {
+  display: block;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--win-black);
+  text-decoration: none;
+}
+.tab-more-item:hover {
+  background: var(--win-navy);
+  color: var(--win-white);
+}
+/* ============================================================
+   RESULTS BODY — single full-width column (sidebar removed)
+   ============================================================ */
+.results-body {
+  display: block;
+}
+.results-col { min-width: 0; }
+.sidebar-col { display: none !important; }
+/* ============================================================
+   KNOWLEDGE CARD — compact, single white panel
+   ============================================================ */
+.knowledge-card {
+  background: var(--win-white);
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.knowledge-card-image {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  background: var(--win-silver-dark);
+  display: block;
+}
+.knowledge-card-content { min-width: 0; }
+.knowledge-card-content h2 {
+  margin: 0 0 1px;
+  font-size: 15px;
+  font-weight: normal;
+  color: var(--win-black);
+}
+.knowledge-card-kind {
+  font-size: 11px;
+  color: var(--win-silver-dark);
+  margin-bottom: 6px;
+}
+.knowledge-card-summary {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--win-black);
+  margin-bottom: 6px;
+}
+.knowledge-card-facts {
+  font-size: 11px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
+  row-gap: 1px;
+  margin: 0 0 4px;
+}
+.knowledge-card-facts dt { color: var(--win-silver-dark); }
+.knowledge-card-facts dd { margin: 0; color: var(--win-black); }
+.knowledge-card-source {
+  font-size: 10px;
+  color: var(--win-silver-dark);
+}
+.knowledge-card-more {
+  font-size: 10px;
+  color: var(--win-navy);
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 6px;
+}
+/* ============================================================
+   SIDEBAR — single panel, no per-entity chrome
+   ============================================================ */
+.sidebar-card {
+  background: var(--win-white);
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+}
+.sidebar-card-title {
+  background: var(--win-navy);
+  color: var(--win-white);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 3px 8px;
+  letter-spacing: 0.5px;
+}
+.sidebar-card-body {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-entity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  text-decoration: none;
+  color: var(--win-black);
+  border-bottom: 1px dotted var(--win-silver);
+}
+.sidebar-entity:last-child { border-bottom: none; }
+.sidebar-entity img {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--win-silver);
+}
+.sidebar-entity-label {
+  font-size: 10px;
+  color: var(--win-silver-dark);
+}
+.sidebar-entity-value {
+  font-size: 12px;
+  color: var(--win-navy);
+  text-decoration: underline;
+}
+/* ============================================================
+   PER-TAB RESULT LAYOUTS
+   ============================================================ */
+/* All per-tab layouts live INSIDE .results-panel — no per-card chrome */
+/* IMAGES: tight grid, no per-card bevels */
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding: 10px 0;
+}
+.image-card {
+  text-decoration: none;
+  color: var(--win-black);
+  position: relative;
+}
+.image-card img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+  background: var(--win-silver-dark);
+  box-shadow: inset 0 0 0 1px var(--win-silver-dark);
+}
+.image-card-caption {
+  font-size: 11px;
+  margin-top: 4px;
+  color: var(--win-black);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.image-card-source {
+  font-size: 10px;
+  color: var(--win-silver-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.image-card .ai-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  margin: 0;
+}
+/* VIDEOS: clean rows, dotted separators */
+.video-list { display: flex; flex-direction: column; }
+.video-card {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px dotted var(--win-silver);
+  text-decoration: none;
+  color: var(--win-black);
+}
+.video-card:last-child { border-bottom: none; }
+.video-thumb {
+  width: 180px;
+  height: 100px;
+  position: relative;
+  background: var(--win-silver-dark);
+  flex-shrink: 0;
+}
+.video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.video-duration {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: var(--win-black);
+  color: var(--win-white);
+  font-size: 10px;
+  padding: 1px 4px;
+}
+.video-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.video-title    { font-size: 14px; color: var(--win-navy); text-decoration: underline; }
+.video-channel  { font-size: 11px; color: var(--win-silver-dark); }
+.video-stats    { font-size: 11px; color: var(--win-black); }
+/* NEWS: clean rows */
+.news-list { display: flex; flex-direction: column; }
+.news-card {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dotted var(--win-silver);
+  text-decoration: none;
+  color: var(--win-black);
+}
+.news-card:last-child { border-bottom: none; }
+.news-thumb { width: 90px; height: 70px; background: var(--win-silver-dark); }
+.news-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.news-outlet { font-size: 11px; color: var(--win-silver-dark); }
+.news-headline { font-size: 14px; color: var(--win-navy); text-decoration: underline; margin: 2px 0 4px; }
+.news-snippet { font-size: 12px; color: var(--win-black); line-height: 1.4; }
+/* FORUMS: clean rows */
+.forum-list { display: flex; flex-direction: column; }
+.forum-card {
+  padding: 12px 0;
+  border-bottom: 1px dotted var(--win-silver);
+  text-decoration: none;
+  color: var(--win-black);
+  display: block;
+}
+.forum-card:last-child { border-bottom: none; }
+.forum-meta { font-size: 11px; color: var(--win-silver-dark); margin-bottom: 2px; }
+.forum-meta strong { color: var(--win-black); font-weight: normal; }
+.forum-title { font-size: 14px; color: var(--win-navy); text-decoration: underline; }
+.forum-snippet { font-size: 12px; color: var(--win-black); margin-top: 4px; line-height: 1.4; }
+/* SHOPPING: tight grid */
+.shopping-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  padding: 12px 0;
+}
+.product-card {
+  text-decoration: none;
+  color: var(--win-black);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.product-card img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  background: var(--win-silver-dark);
+  margin-bottom: 4px;
+}
+.product-title   { font-size: 12px; color: var(--win-black); line-height: 1.3; }
+.product-price   { font-size: 14px; color: var(--win-navy); }
+.product-rating  { font-size: 10px; color: #b06000; }
+.product-seller  { font-size: 10px; color: var(--win-silver-dark); }
+/* MAPS: clean rows */
+.map-list { display: flex; flex-direction: column; }
+.map-card {
+  padding: 12px 0;
+  border-bottom: 1px dotted var(--win-silver);
+  text-decoration: none;
+  color: var(--win-black);
+  display: block;
+}
+.map-card:last-child { border-bottom: none; }
+.map-name    { font-size: 14px; color: var(--win-navy); text-decoration: underline; }
+.map-type    { font-size: 11px; color: var(--win-silver-dark); }
+.map-rating  { font-size: 11px; color: #b06000; margin-top: 2px; }
+.map-address { font-size: 11px; color: var(--win-black); margin-top: 4px; }
+.map-hours-open   { color: var(--win-green); }
+.map-hours-closed { color: var(--win-red); }
+/* AI badge - subtle variant for trace AI content */
+.ai-badge.subtle {
+  background: var(--win-silver);
+  color: var(--win-silver-dark);
+}
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 700px) {
+  :root { --adtab-width: 180px; }
+  .wordmark { font-size: 48px; }
+  .hero { padding-top: 8vh; }
+  .results-header { gap: 12px; }
+  .results-header .mini-wordmark { font-size: 22px; }
+}

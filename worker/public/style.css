@@ -1,0 +1,224 @@
+:root {
+  --bg: #fafaf8;
+  --fg: #1a1a1a;
+  --muted: #6b6b6b;
+  --link: #1a5fb4;
+  --link-visited: #5a3e85;
+  --accent: #c97a2c;
+  --border: #e3e0d8;
+  --card: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161a;
+    --fg: #e6e6e6;
+    --muted: #a0a0a0;
+    --link: #6aa8ff;
+    --link-visited: #b388ff;
+    --border: #2a2c33;
+    --card: #1d1e23;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.topbar {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  color: var(--fg);
+}
+.logo::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  background: var(--accent);
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+main {
+  max-width: 720px;
+  margin: 48px auto;
+  padding: 0 20px;
+}
+
+.search-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.search-form input {
+  flex: 1;
+  padding: 14px 18px;
+  font-size: 16px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  outline: none;
+}
+.search-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.search-form button {
+  padding: 0 22px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.search-form button:hover { filter: brightness(1.05); }
+
+.status {
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 18px;
+  margin-bottom: 16px;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.result {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.result .domain {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.result a.title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--link);
+  text-decoration: none;
+}
+.result a.title:visited { color: var(--link-visited); }
+.result a.title:hover { text-decoration: underline; }
+.result .snippet {
+  margin: 6px 0 0;
+  color: var(--fg);
+  font-size: 14px;
+}
+.result .provider {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+.foot {
+  text-align: center;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.foot a { color: var(--muted); }
+
+/* ---------- Legal & safety pages ---------- */
+.legal {
+  max-width: 760px;
+  margin: 48px auto;
+  padding: 0 24px 64px;
+}
+.legal .lead {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 4px 0 24px;
+}
+.legal .lead a {
+  color: var(--link);
+  text-decoration: none;
+  margin-right: 8px;
+}
+.legal .lead a:hover { text-decoration: underline; }
+.legal .lead a[aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.legal h1 {
+  font-size: 28px;
+  letter-spacing: -0.01em;
+  margin-top: 0;
+}
+.legal h2 {
+  font-size: 20px;
+  margin-top: 36px;
+  color: var(--fg);
+}
+.legal h3 {
+  font-size: 16px;
+  margin-top: 24px;
+  color: var(--fg);
+}
+.legal p, .legal li {
+  font-size: 15px;
+  line-height: 1.65;
+}
+.legal ul {
+  padding-left: 20px;
+}
+.legal ul li { margin-bottom: 6px; }
+.legal a { color: var(--link); }
+.legal .meta {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+.legal .draft {
+  background: #fff4ce;
+  color: #5a3c00;
+  border: 1px solid #e0c97a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+@media (prefers-color-scheme: dark) {
+  .legal .draft {
+    background: #3a2f10;
+    color: #f3e0a3;
+    border-color: #6b5320;
+  }
+}

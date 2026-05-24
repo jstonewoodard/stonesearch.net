@@ -1,0 +1,23 @@
+{
+  "name": "stonesearch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stone Search — meta-search engine on Cloudflare Workers",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:migrate": "wrangler d1 execute stonesearch-analytics --remote --file=./schema.sql",
+    "db:local": "wrangler d1 execute stonesearch-analytics --local --file=./schema.sql",
+    "secret:brave": "wrangler secret put BRAVE_API_KEY",
+    "secret:hive": "wrangler secret put HIVE_API_KEY",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p test/tsconfig.test.json && node test/worker-analyzer.test.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^4.94.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./build",
+    "module": "ES2022",
+    "target": "ES2022",
+    "moduleResolution": "Bundler",
+    "rootDir": "../src",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["../src/ai-filter/**/*.ts"]
+}

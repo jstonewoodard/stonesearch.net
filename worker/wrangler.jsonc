@@ -1,0 +1,68 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stonesearch",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "account_id": "d8d1ce8c9579c2c51db433f5144156c0",
+
+  // Bind the static UI (anything in ./public is served at the root)
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // KV — search-result cache (TTL ~10 min on hot queries)
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "c0263c0f93ce45bd90181a5b3f318f87"
+    },
+    {
+      "binding": "RATELIMIT",
+      "id": "a36db56606a74e0aa24cf82a73bdb43d"
+    }
+  ],
+
+  // D1 — query analytics
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "stonesearch-analytics",
+      "database_id": "b274ca4c-1b26-4aeb-93c7-865d6c1ad9c1"
+    }
+  ],
+
+  // Observability — turn on Workers Logs
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Secrets (DO NOT commit values — set via `wrangler secret put BRAVE_API_KEY`)
+  // Listed here for documentation only:
+  // - BRAVE_API_KEY        : Brave Search API key
+  // - BING_API_KEY         : (optional) Bing Web Search API key
+  // - GOOGLE_CSE_ID        : (optional) Google Programmable Search engine ID
+  // - GOOGLE_CSE_API_KEY   : (optional) Google Programmable Search API key
+
+  // Custom domain — attaches the Worker to the live Cloudflare zone for
+  // stonesearch.net. `custom_domain: true` makes Cloudflare manage the DNS
+  // record swap atomically (replaces the legacy apex A records on deploy).
+  "routes": [
+    { "pattern": "stonesearch.net", "custom_domain": true },
+    { "pattern": "www.stonesearch.net", "custom_domain": true }
+  ],
+
+  // Fallback verification URL: stonesearch.<account-subdomain>.workers.dev
+  // Useful for debugging if the custom domain ever misbehaves.
+  // Newer wrangler defaults this to false, so we set it explicitly.
+  "workers_dev": true,
+
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CACHE_TTL_SECONDS": "600",
+    "RATELIMIT_PER_MINUTE": "60"
+  }
+}
