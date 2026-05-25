@@ -32,12 +32,54 @@ const DEFAULT_OPTIONS = {
   imageConcurrency: 5,
 };
 
-function createAnalyzer({ textBackend, imageBackend, cache } = {}) {
+// Names of mock backends. Used by strict mode to decide whether the
+// configured detectors count as "real" or not. Keep in sync with the
+// `name` field on each backend export.
+const MOCK_BACKEND_NAMES = new Set(['text-mock', 'image-mock']);
+
+function isMock(backend) {
+  return !backend || MOCK_BACKEND_NAMES.has(backend.name);
+}
+
+/**
+ * createAnalyzer
+ *
+ * Options:
+ *   textBackend, imageBackend  — Detector instances
+ *   cache                       — cache adapter (TtlCache, kvCache, etc.)
+ *   strict                      — if true, return null + 'no-real-backend'
+ *                                 warning when BOTH text + image backends
+ *                                 are mocks. Default: false (back-compat).
+ *                                 Production callers should pass strict: true
+ *                                 unless they have explicitly opted into mocks.
+ */
+function createAnalyzer({ textBackend, imageBackend, cache, strict = false } = {}) {
   const _cache = cache || new TtlCache();
 
   async function analyze(input, options = {}) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const warnings = [];
+
+    // --- 0. Strict-mode short-circuit --------------------------------------
+    // Per the policy decision documented in the spec follow-up: if no real
+    // detector is configured, return null rather than a misleading mock
+    // score. The front-end MUST treat aiScore: null as "not analyzed."
+    if (strict && isMock(textBackend) && isMock(imageBackend)) {
+      return {
+        aiScore: null,
+        verdict: 'CLEAN',
+        modality: { text: null, image: null },
+        weights: { text: 0, image: 0 },
+        override: null,
+        base_score: 0,
+        thresholds: require('./scorer.js').THRESHOLDS,
+        url: input.url,
+        provenance: [],
+        warnings: ['no-real-backend:strict-mode'],
+        cache: 'miss',
+        source: 'no-detector',
+      };
+    }
 
     // --- 1. Fetch + extract -------------------------------------------------
     let text = input.text;

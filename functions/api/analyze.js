@@ -1,113 +1,96 @@
 /* ============================================================
-   Stone Search — /api/analyze (Cloudflare Pages Function)
+   Stone Search — /api/analyze (Cloudflare Pages Function) — v2
    ------------------------------------------------------------
    POST /api/analyze
-     body: { url?, title?, snippet? }
-     response: { aiScore: number 0-100, source: 'hive' | 'mock' }
+     body:    { url?, title?, snippet?, text?, images?, options? }
+     response (full envelope, see spec §5.1):
+       { aiScore, verdict, modality, weights, override,
+         provenance, warnings, cache, source }
 
-   Mirrors handleAnalyze() in /server.js. Calls Hive's AI Detection
-   API when HIVE_API_KEY is set in the Pages environment; falls
-   back to a deterministic mock score otherwise — same hash math
-   as the local server, so scores match dev ↔ prod for the same input.
+   This handler is the production port of the v2 multi-modal
+   filter (text + image, weighted score, four-tier verdict).
+   Math + behavior are identical to the local Node server (see
+   /server.js and /api/ai-filter/).
 
-   To set HIVE_API_KEY in production:
-     Cloudflare Dashboard → Pages → stonesearch-net → Settings
-     → Environment variables → add HIVE_API_KEY (encrypted)
+   Bindings (configured in Pages → Settings → Functions):
+     env.HIVE_API_KEY      (encrypted)  — text detector vendor
+     env.CACHE             (KV namespace, optional) — cross-isolate cache
 
-   Follow-up: wire in the full /api/ai-filter pipeline
-   (scorer, image detection, C2PA provenance) once the frontend
-   is updated to consume the richer envelope.
+   Without HIVE_API_KEY the text backend is the deterministic
+   mock (same hash math as dev). Without env.CACHE the per-isolate
+   in-memory cache is used (still useful within a request burst).
    ============================================================ */
+
+import { createAnalyzer, kvCache } from '../_lib/ai-filter/analyzer.mjs';
+import { textMock, makeTextHive, makeTextHuggingFace, imageMock } from '../_lib/ai-filter/backends.mjs';
 
 export async function onRequestPost({ request, env }) {
   let body = {};
+  try { body = await request.json(); } catch (_) { /* tolerate empty body */ }
+
+  // Text backend priority (per docs/ai-filter/Hive_Clone_Feasibility.md §4):
+  //   1. Hugging Face if HF_API_TOKEN is set — free, controllable, no
+  //      surprise bills, no user data through a 3rd-party we don't have
+  //      a contract with.
+  //   2. Hive if HIVE_API_KEY is set — paid fallback. Per the Feb 2026
+  //      open-source benchmark, the marginal accuracy gain over HF is
+  //      small enough that ensemble fusion in the scorer absorbs most of
+  //      it. Hive stays valuable as (a) a comparable to benchmark our
+  //      stack against and (b) a tie-breaker when HF errors or is
+  //      rate-limited.
+  //   3. text-mock — only useful behind ALLOW_MOCK=1 in dev/preview.
+  const textBackend =
+        env.HF_API_TOKEN ? makeTextHuggingFace(env.HF_API_TOKEN, env.HF_TEXT_MODEL)
+      : env.HIVE_API_KEY ? makeTextHive(env.HIVE_API_KEY)
+      : textMock;
+  const imageBackend = imageMock; // swap for Sightengine/Hive Visual when wired
+
+  // Strict mode: in production, refuse to return mock scores. Set
+  // ALLOW_MOCK=1 in Pages env vars to permit them (useful for dev/preview
+  // deployments where you want to exercise the front-end end-to-end without
+  // a paid detector key).
+  const strict = env.ALLOW_MOCK !== '1' && env.ALLOW_MOCK !== 'true';
+
+  const analyzer = createAnalyzer({
+    textBackend,
+    imageBackend,
+    cache: env.CACHE ? kvCache(env.CACHE) : undefined,
+    strict,
+  });
+
   try {
-    body = await request.json();
-  } catch (_) {
-    // Empty/invalid body → fall through with defaults; matches server.js behavior.
+    const envelope = await analyzer.analyze(
+      {
+        url: body.url,
+        title: body.title,
+        snippet: body.snippet,
+        text: body.text,
+        images: body.images,
+      },
+      body.options || {}
+    );
+    return json(envelope);
+  } catch (err) {
+    console.error('analyze failed:', err?.message || err);
+    return json({
+      aiScore: null,
+      verdict: 'CLEAN',
+      source: 'degraded',
+      warnings: [`analyzer:error:${err?.message || String(err)}`],
+    });
   }
-
-  const { url: itemUrl, snippet, title } = body || {};
-  const text = [title, snippet].filter(Boolean).join("\n\n");
-
-  if (env.HIVE_API_KEY) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 4000);
-      try {
-        const r = await fetch("https://api.thehive.ai/api/v2/task/sync", {
-          method: "POST",
-          signal: ctrl.signal,
-          headers: {
-            Authorization: `Token ${env.HIVE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text_data: text }),
-        });
-        const j = await r.json();
-        const score = extractHiveScore(j);
-        if (score !== null) {
-          return json({ aiScore: score, source: "hive" });
-        }
-        // Hive responded but we couldn't parse → fall through to mock.
-      } finally {
-        clearTimeout(timer);
-      }
-    } catch (err) {
-      console.error("Hive call failed:", err?.message || err);
-      // Fall through to mock.
-    }
-  }
-
-  const score = mockScore(itemUrl || text || Math.random().toString());
-  return json({ aiScore: score, source: "mock" });
 }
 
 export function onRequestOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders(),
-  });
-}
-
-// ---------------------------- helpers ----------------------------
-
-function extractHiveScore(json) {
-  try {
-    const out = json?.status?.[0]?.response?.output?.[0];
-    const cls = out?.classes || [];
-    const ai = cls.find((c) => /ai|generated|machine/i.test(c.class));
-    if (ai && typeof ai.score === "number") {
-      return Math.round(ai.score * 1000) / 10;
-    }
-  } catch (_) {
-    // ignore
-  }
-  return null;
-}
-
-/* Deterministic 0-100 score from a seed string. Distribution:
-     60% clean (<5%), 25% flagged (5-25%), 15% blocked (>25%).
-   Exact same math as server.js mockScore() so scores are stable
-   across the local dev server and the deployed Function. */
-function mockScore(seedStr) {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    h ^= seedStr.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  const r = (h % 10000) / 10000;
-  if (r < 0.6) return Math.round((r / 0.6) * 5 * 10) / 10;
-  if (r < 0.85) return Math.round((5 + ((r - 0.6) / 0.25) * 20) * 10) / 10;
-  return Math.round((25 + ((r - 0.85) / 0.15) * 70) * 10) / 10;
+  return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
       ...corsHeaders(),
     },
   });
@@ -115,8 +98,8 @@ function json(payload, status = 200) {
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

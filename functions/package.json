@@ -1,0 +1,6 @@
+{
+  "name": "stonesearch-functions",
+  "type": "module",
+  "private": true,
+  "description": "Cloudflare Pages Functions for stonesearch.net. Scoped 'type: module' so .js handlers (analyze.js, search.js) load as ESM in Node tests; Cloudflare's runtime treats them as ESM regardless."
+}

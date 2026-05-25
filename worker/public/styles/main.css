@@ -133,23 +133,58 @@ html, body {
 }
 .ad-slot {
   flex: 1;
-  min-height: 90px;
-  background: repeating-linear-gradient(
-    45deg,
-    #ffffff,
-    #ffffff 6px,
-    #f4f4f4 6px,
-    #f4f4f4 12px
-  );
+  min-height: 110px;
+  background: var(--win-white);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   color: var(--win-silver-dark);
   font-size: 11px;
   border-top:    2px solid var(--win-silver-dark);
   border-left:   2px solid var(--win-silver-dark);
   border-right:  2px solid var(--win-silver-light);
   border-bottom: 2px solid var(--win-silver-light);
+  padding: 0;
+}
+/* Fake-ad placeholder (until real ad inventory is wired up) */
+.fake-ad {
+  --ad-color: #5a7a9a;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: "MS Sans Serif", Tahoma, Geneva, sans-serif;
+  color: var(--win-black);
+  background: var(--win-white);
+}
+.fake-ad-brand {
+  background: var(--ad-color);
+  color: #fff;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 4px 6px;
+  text-align: center;
+  text-transform: uppercase;
+}
+.fake-ad-headline {
+  font-size: 11px;
+  padding: 6px 6px 4px;
+  line-height: 1.25;
+  flex: 1;
+}
+.fake-ad-cta {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--ad-color);
+  padding: 0 6px 4px;
+}
+.fake-ad-tag {
+  font-size: 9px;
+  color: var(--win-silver-dark);
+  padding: 0 6px 5px;
+  border-top: 1px dotted var(--win-silver);
+  padding-top: 3px;
+  margin: 0 6px;
 }
 /* Collapsed-state strip (vertical "ad tab" label) */
 .ad-tab-collapsed-label {
@@ -425,6 +460,166 @@ body.adtab-collapsed .results-main {
 }
 .ai-badge.clean   { background: #d0ffd0; color: #006600; }
 .ai-badge.flagged { background: var(--win-yellow); color: #806000; }
+.ai-badge.blocked { background: #ffd0d0; color: #800000; }
+.ai-badge.unknown { background: var(--win-silver); color: var(--win-silver-dark); }
+/* All clickable badges become button-shaped: tight cursor + active depress */
+button.ai-badge {
+  font-family: inherit;
+  cursor: pointer;
+}
+button.ai-badge:active {
+  border-top:    1px solid var(--win-silver-dark);
+  border-left:   1px solid var(--win-silver-dark);
+  border-right:  1px solid var(--win-silver-light);
+  border-bottom: 1px solid var(--win-silver-light);
+}
+button.ai-badge:focus {
+  outline: 1px dotted var(--win-black);
+  outline-offset: 1px;
+}
+/* ============================================================
+   AI DIAGNOSTICS POPOVER — Win95 floating panel
+   ============================================================ */
+.ai-popover {
+  position: absolute;
+  z-index: 1000;
+  background: var(--win-silver);
+  color: var(--win-black);
+  font-family: "MS Sans Serif", Tahoma, Geneva, sans-serif;
+  font-size: 11px;
+  border-top:    1px solid var(--win-silver-light);
+  border-left:   1px solid var(--win-silver-light);
+  border-right:  1px solid var(--win-black);
+  border-bottom: 1px solid var(--win-black);
+  box-shadow:
+    inset -1px -1px 0 var(--win-silver-dark),
+    inset  1px  1px 0 var(--win-white),
+    2px 2px 0 rgba(0,0,0,0.18);
+  max-height: 70vh;
+  overflow: auto;
+}
+.ai-popover-titlebar {
+  background: var(--win-navy);
+  color: var(--win-white);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 3px 4px 3px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  letter-spacing: 0.3px;
+}
+.ai-popover-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-popover-close {
+  background: var(--win-silver);
+  color: var(--win-black);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  width: 16px; height: 16px;
+  line-height: 14px;
+  text-align: center;
+  border: none;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+  padding: 0;
+}
+.ai-popover-close:active {
+  box-shadow:
+    inset -1px -1px 0 var(--win-white),
+    inset  1px  1px 0 var(--win-black),
+    inset -2px -2px 0 var(--win-silver-light),
+    inset  2px  2px 0 var(--win-silver-dark);
+}
+.ai-popover-body { padding: 8px 10px 10px; }
+.ai-popover-because { margin-bottom: 6px; line-height: 1.4; color: var(--win-black); }
+.ai-popover-link {
+  display: block;
+  color: var(--win-navy);
+  font-size: 10px;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.ai-popover-rows {
+  background: var(--win-white);
+  padding: 6px 8px;
+  box-shadow:
+    inset  1px  1px 0 var(--win-silver-dark),
+    inset -1px -1px 0 var(--win-silver-light);
+  margin-bottom: 8px;
+}
+.ai-popover-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0;
+}
+.ai-popover-row .lbl { color: var(--win-silver-dark); }
+.ai-popover-row .val { font-weight: bold; }
+.ai-popover-row .val.v-block  { color: #800000; }
+.ai-popover-row .val.v-warn-h { color: #806000; }
+.ai-popover-row .val.v-warn-l { color: #555; }
+.ai-popover-row .val.v-clean  { color: #006600; }
+.ai-popover-row .val.v-override { color: #800040; }
+.ai-popover-section {
+  margin-top: 6px;
+  background: var(--win-white);
+  padding: 6px 8px;
+  box-shadow:
+    inset  1px  1px 0 var(--win-silver-dark),
+    inset -1px -1px 0 var(--win-silver-light);
+}
+.ai-popover-section-hdr {
+  font-weight: bold;
+  font-size: 11px;
+  margin-bottom: 4px;
+  color: var(--win-navy);
+}
+.ai-popover-modal { margin-top: 4px; }
+.ai-popover-modal .m-hdr { font-weight: bold; font-size: 10px; }
+.ai-popover-modal .m-row { font-size: 10px; color: var(--win-black); margin-top: 1px; }
+.ai-popover-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 10px;
+}
+.ai-popover-list li { padding: 2px 0; border-bottom: 1px dotted var(--win-silver); }
+.ai-popover-list li:last-child { border-bottom: none; }
+.ai-popover-warnings li {
+  font-family: "Courier New", "MS Sans Serif", monospace;
+  color: #800000;
+}
+.ai-popover-empty { font-size: 10px; color: var(--win-silver-dark); font-style: italic; padding: 2px 0; }
+.ai-popover-foot {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--win-silver-dark);
+  font-size: 10px;
+  color: var(--win-silver-dark);
+}
+.ai-popover-hidden-list .hidden-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 0;
+}
+.ai-popover-hidden-list .hidden-item-meta { flex: 1; min-width: 0; }
+.ai-popover-hidden-list .hidden-item-title {
+  font-size: 11px;
+  color: var(--win-navy);
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-popover-hidden-list .hidden-item-host { font-size: 10px; color: var(--win-silver-dark); }
 /* Subtle indicator for WARN_LOW (page score 0-10%). Gray dot, minimal weight. */
 .ai-badge.subtle  {
   background: transparent;
@@ -481,7 +676,7 @@ body.adtab-collapsed .results-main {
 .tab-more-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   margin-top: 1px;
   background: var(--win-silver);
   min-width: 120px;
@@ -758,6 +953,17 @@ body.adtab-collapsed .results-main {
 .product-rating  { font-size: 10px; color: #b06000; }
 .product-seller  { font-size: 10px; color: var(--win-silver-dark); }
 /* MAPS: clean rows */
+.map-canvas {
+  width: 100%;
+  height: 200px;
+  margin: 10px 0 12px;
+  box-shadow:
+    inset  1px  1px 0 var(--win-silver-dark),
+    inset -1px -1px 0 var(--win-white);
+  overflow: hidden;
+  background: #e8efe4;
+}
+.map-canvas svg { display: block; width: 100%; height: 100%; }
 .map-list { display: flex; flex-direction: column; }
 .map-card {
   padding: 12px 0;

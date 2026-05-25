@@ -134,22 +134,39 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
             body: JSON.stringify({ url: item.url, snippet: item.snippet || '', title: item.title }),
           });
           const j = await a.json();
+          // Preserve the FULL envelope under aiEnvelope so the diagnostics
+          // popover can surface warnings / weights / modality / provenance /
+          // override / base_score / thresholds — the "fail loudly" details.
           return {
             ...item,
             aiScore: j.aiScore,
             verdict: j.verdict || deriveVerdict(j.aiScore),
             modality: j.modality || null,
+            aiEnvelope: j,
           };
         } catch (e) {
-          return { ...item, aiScore: null };
+          return {
+            ...item,
+            aiScore: null,
+            aiEnvelope: { aiScore: null, verdict: 'CLEAN', warnings: ['fetch:analyze-failed:' + e.message], source: 'degraded' },
+          };
         }
       }));
     }
-    // For images/videos, use aiLikely directly
+    // For images/videos, use aiLikely directly. Synthesize a minimal envelope
+    // so the popover still has something to show.
     return items.map(it => ({
       ...it,
       aiScore: it.aiLikely,
       verdict: deriveVerdict(it.aiLikely),
+      aiEnvelope: {
+        aiScore: it.aiLikely,
+        verdict: deriveVerdict(it.aiLikely),
+        modality: { text: null, image: { score: it.aiLikely, count: 1 } },
+        weights: { text: 0, image: 1 },
+        source: 'per-result-mock',
+        warnings: [],
+      },
     }));
   }
 
@@ -180,10 +197,11 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     let flagged = 0;
     let clean = 0;
     const visible = [];
+    const hiddenList = [];
 
     for (const r of results) {
       const v = r.verdict || deriveVerdict(r.aiScore);
-      if (filterOn && filterApplicable && v === 'BLOCK') { hidden++; continue; }
+      if (filterOn && filterApplicable && v === 'BLOCK') { hidden++; hiddenList.push(r); continue; }
       visible.push(r);
       if (v === 'WARN_HIGH' || v === 'WARN_LOW') flagged++;
       else clean++;
@@ -195,11 +213,16 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
       filterBanner.innerHTML =
         '&#9888; <strong>' + hidden + '</strong> result' + (hidden === 1 ? '' : 's') +
         ' hidden for scoring over ' + FILTER_THRESHOLD + '% AI-generated. ' +
-        '<a href="#" id="show-hidden">Show anyway</a>';
+        '<a href="#" id="show-hidden">Show anyway</a> &middot; ' +
+        '<a href="#" id="why-hidden">Why?</a>';
       filterBanner.querySelector('#show-hidden').addEventListener('click', (e) => {
         e.preventDefault();
         filterToggle.checked = false;
         render(allResults);
+      });
+      filterBanner.querySelector('#why-hidden').addEventListener('click', (e) => {
+        e.preventDefault();
+        openHiddenListPopover(e.currentTarget, hiddenList);
       });
     } else {
       filterBanner.style.display = 'none';
@@ -261,43 +284,53 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   }
 
   function renderImages(results, flagOn) {
-    return `<div class="image-grid">${results.map(r => `
-      <a class="image-card" href="${escapeAttr(r.sourceUrl)}" target="_blank" rel="noopener" title="${escapeAttr(r.title)}">
-        <img src="${escapeAttr(r.imageUrl)}" alt="${escapeAttr(r.title)}" loading="lazy" />
-        <div class="image-card-caption">${escapeHtml(r.title)}</div>
-        <div class="image-card-source">${escapeHtml(r.source)}</div>
+    return `<div class="image-grid">${results.map((r, i) => {
+      const src = r.imageUrl || placeholderSvg(seedFor(r, i), 400, 300, initials(r.title));
+      const linkUrl = r.sourceUrl || r.url || '#';
+      return `
+      <a class="image-card" href="${escapeAttr(linkUrl)}" target="_blank" rel="noopener" title="${escapeAttr(r.title || '')}">
+        <img src="${escapeAttr(src)}" alt="${escapeAttr(r.title || '')}" loading="lazy"
+             onerror="this.src='${escapeAttr(placeholderSvg(seedFor(r, i), 400, 300, initials(r.title)))}'" />
+        <div class="image-card-caption">${escapeHtml(r.title || '(untitled)')}</div>
+        <div class="image-card-source">${escapeHtml(r.source || hostFor(linkUrl))}</div>
         ${aiBadge(r, flagOn)}
-      </a>
-    `).join('')}</div>`;
+      </a>`;
+    }).join('')}</div>`;
   }
 
   function renderVideos(results, flagOn) {
-    return `<div class="video-list">${results.map(r => `
+    return `<div class="video-list">${results.map((r, i) => {
+      const thumb = r.thumbUrl || placeholderSvg(seedFor(r, i), 320, 180, initials(r.title));
+      return `
       <a class="video-card" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">
         <div class="video-thumb">
-          <img src="${escapeAttr(r.thumbUrl)}" alt="" loading="lazy" />
-          <span class="video-duration">${escapeHtml(r.duration)}</span>
+          <img src="${escapeAttr(thumb)}" alt="" loading="lazy"
+               onerror="this.src='${escapeAttr(placeholderSvg(seedFor(r, i), 320, 180, initials(r.title)))}'" />
+          ${r.duration ? `<span class="video-duration">${escapeHtml(r.duration)}</span>` : ''}
         </div>
         <div class="video-meta">
-          <div class="video-title">${escapeHtml(r.title)} ${aiBadge(r, flagOn)}</div>
-          <div class="video-channel">${escapeHtml(r.channel)}</div>
-          <div class="video-stats">${escapeHtml(r.views)} views &middot; ${escapeHtml(r.postedAt)}</div>
+          <div class="video-title">${escapeHtml(r.title || '(untitled)')} ${aiBadge(r, flagOn)}</div>
+          <div class="video-channel">${escapeHtml(r.channel || hostFor(r.url))}</div>
+          <div class="video-stats">${r.views ? escapeHtml(r.views) + ' views' : ''}${r.views && r.postedAt ? ' &middot; ' : ''}${escapeHtml(r.postedAt || '')}</div>
         </div>
-      </a>
-    `).join('')}</div>`;
+      </a>`;
+    }).join('')}</div>`;
   }
 
   function renderNews(results, flagOn) {
-    return `<div class="news-list">${results.map(r => `
+    return `<div class="news-list">${results.map((r, i) => {
+      const thumb = r.thumbUrl || placeholderSvg(seedFor(r, i), 120, 90, initials(r.title));
+      return `
       <a class="news-card" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">
-        <div class="news-thumb"><img src="${escapeAttr(r.thumbUrl)}" alt="" loading="lazy" /></div>
+        <div class="news-thumb"><img src="${escapeAttr(thumb)}" alt="" loading="lazy"
+             onerror="this.src='${escapeAttr(placeholderSvg(seedFor(r, i), 120, 90, initials(r.title)))}'" /></div>
         <div>
-          <div class="news-outlet">${escapeHtml(r.outlet)} &middot; ${escapeHtml(r.publishedAt)}</div>
-          <div class="news-headline">${escapeHtml(r.title)} ${aiBadge(r, flagOn)}</div>
-          <div class="news-snippet">${escapeHtml(r.snippet)}</div>
+          <div class="news-outlet">${escapeHtml(r.outlet || hostFor(r.url))}${r.publishedAt ? ' &middot; ' + escapeHtml(r.publishedAt) : ''}</div>
+          <div class="news-headline">${escapeHtml(r.title || '(untitled)')} ${aiBadge(r, flagOn)}</div>
+          <div class="news-snippet">${escapeHtml(r.snippet || '')}</div>
         </div>
-      </a>
-    `).join('')}</div>`;
+      </a>`;
+    }).join('')}</div>`;
   }
 
   function renderForums(results, flagOn) {
@@ -311,28 +344,67 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   }
 
   function renderShopping(results) {
-    return `<div class="shopping-grid">${results.map(r => `
+    return `<div class="shopping-grid">${results.map((r, i) => {
+      const thumb = r.thumbUrl || placeholderSvg(seedFor(r, i), 180, 180, initials(r.title));
+      return `
       <a class="product-card" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">
-        <img src="${escapeAttr(r.thumbUrl)}" alt="" loading="lazy" />
-        <div class="product-title">${escapeHtml(r.title)}</div>
-        <div class="product-price">${escapeHtml(r.price)}</div>
-        <div class="product-rating">&#9733; ${r.rating} (${r.reviews})</div>
-        <div class="product-seller">${escapeHtml(r.seller)} &middot; ${escapeHtml(r.shipping)}</div>
-      </a>
-    `).join('')}</div>`;
+        <img src="${escapeAttr(thumb)}" alt="" loading="lazy"
+             onerror="this.src='${escapeAttr(placeholderSvg(seedFor(r, i), 180, 180, initials(r.title)))}'" />
+        <div class="product-title">${escapeHtml(r.title || '(untitled)')}</div>
+        ${r.price ? `<div class="product-price">${escapeHtml(r.price)}</div>` : ''}
+        ${r.rating != null ? `<div class="product-rating">&#9733; ${r.rating}${r.reviews != null ? ' (' + r.reviews + ')' : ''}</div>` : ''}
+        <div class="product-seller">${escapeHtml(r.seller || hostFor(r.url))}${r.shipping ? ' &middot; ' + escapeHtml(r.shipping) : ''}</div>
+      </a>`;
+    }).join('')}</div>`;
   }
 
   function renderMaps(results) {
-    return `<div class="map-list">${results.map(r => {
-      const openClass = /open/i.test(r.hours) && !/closed/i.test(r.hours) ? 'map-hours-open' : 'map-hours-closed';
+    const mapGraphic = `
+      <div class="map-canvas" aria-label="Map preview">
+        <svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" width="100%" height="100%">
+          <rect width="600" height="200" fill="#e8efe4"/>
+          <path d="M0 80 Q150 60 300 90 T600 75" stroke="#9ab98a" stroke-width="3" fill="none"/>
+          <path d="M0 150 Q200 130 400 155 T600 145" stroke="#9ab98a" stroke-width="3" fill="none"/>
+          <path d="M120 0 L130 200" stroke="#c0b090" stroke-width="6" fill="none"/>
+          <path d="M340 0 L355 200" stroke="#c0b090" stroke-width="6" fill="none"/>
+          <path d="M480 0 L470 200" stroke="#c0b090" stroke-width="6" fill="none"/>
+          <path d="M0 110 L600 105" stroke="#b89e6e" stroke-width="4" fill="none"/>
+          <circle cx="180" cy="105" r="6" fill="#c00"/>
+          <circle cx="320" cy="60"  r="6" fill="#c00"/>
+          <circle cx="430" cy="130" r="6" fill="#c00"/>
+          <circle cx="500" cy="80"  r="6" fill="#c00"/>
+          <circle cx="100" cy="150" r="6" fill="#c00"/>
+          <text x="10" y="195" font-family="MS Sans Serif, Tahoma, sans-serif" font-size="10" fill="#666">Map preview &mdash; live map coming soon</text>
+        </svg>
+      </div>`;
+    if (!results || results.length === 0) {
+      return mapGraphic + '<div class="loading" style="text-align:center;">No places found for this query.</div>';
+    }
+    const cards = results.map(r => {
+      // Worker currently returns web-shaped results regardless of tab, so fall
+      // back to title/snippet/url when the maps-specific fields are missing.
+      const name    = r.name    || r.title || '(untitled place)';
+      const type    = r.type    || hostFor(r.url);
+      const address = r.address || r.snippet || '';
+      const hasHours = !!r.hours;
+      const openClass = hasHours && /open/i.test(r.hours) && !/closed/i.test(r.hours) ? 'map-hours-open' : 'map-hours-closed';
+      const metaBits = [
+        r.rating != null ? `&#9733; ${r.rating}${r.reviews != null ? ' &middot; ' + r.reviews + ' reviews' : ''}` : '',
+      ].filter(Boolean).join('');
+      const addrBits = [
+        address ? escapeHtml(address) : '',
+        hasHours ? `<span class="${openClass}">${escapeHtml(r.hours)}</span>` : '',
+        r.phone ? escapeHtml(r.phone) : '',
+      ].filter(Boolean).join(' &middot; ');
       return `
       <a class="map-card" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">
-        <div class="map-name">${escapeHtml(r.name)}</div>
-        <div class="map-type">${escapeHtml(r.type)}</div>
-        <div class="map-rating">&#9733; ${r.rating} &middot; ${r.reviews} reviews</div>
-        <div class="map-address">${escapeHtml(r.address)} &middot; <span class="${openClass}">${escapeHtml(r.hours)}</span> &middot; ${escapeHtml(r.phone)}</div>
+        <div class="map-name">${escapeHtml(name)}</div>
+        <div class="map-type">${escapeHtml(type)}</div>
+        ${metaBits ? `<div class="map-rating">${metaBits}</div>` : ''}
+        ${addrBits ? `<div class="map-address">${addrBits}</div>` : ''}
       </a>`;
-    }).join('')}</div>`;
+    }).join('');
+    return mapGraphic + `<div class="map-list">${cards}</div>`;
   }
 
   // ============================================================
@@ -399,17 +471,238 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   // ============================================================
   //   AI BADGE / HELPERS
   // ============================================================
+  // Stash each result's envelope so the popover can fetch it back by id when
+  // a badge is clicked (DOM event handlers can't easily carry object refs).
+  const ENVELOPE_REGISTRY = new Map();
+  let _envelopeIdCounter = 0;
+  function registerEnvelope(r) {
+    const id = 'ai-env-' + (++_envelopeIdCounter);
+    ENVELOPE_REGISTRY.set(id, r);
+    return id;
+  }
+
   function aiBadge(r, flagOn) {
     const score = r.aiScore;
     const v = r.verdict || deriveVerdict(score);
-    if (score == null) return '<span class="ai-badge" title="AI score unavailable">AI: ?</span>';
-    if (v === 'WARN_HIGH' && flagOn) {
-      return `<span class="ai-badge flagged" title="Possibly AI-generated (${score.toFixed(1)}%)">&#9888; AI: ${score.toFixed(0)}%</span>`;
+    let cls, content, label;
+    if (score == null) {
+      cls = 'ai-badge unknown';
+      content = 'AI: ?';
+      label = 'AI score unavailable — click for details';
+    } else if (v === 'BLOCK') {
+      // BLOCK results are usually filtered out of view, but show inline when
+      // the user has clicked "Show anyway" on the filtered banner.
+      cls = 'ai-badge blocked';
+      content = '&#9888; AI: ' + score.toFixed(0) + '%';
+      label = 'Filtered: above ' + FILTER_THRESHOLD + '% AI — click for details';
+    } else if (v === 'WARN_HIGH' && flagOn) {
+      cls = 'ai-badge flagged';
+      content = '&#9888; AI: ' + score.toFixed(0) + '%';
+      label = 'Possibly AI-generated (' + score.toFixed(1) + '%) — click for details';
+    } else if (v === 'WARN_LOW' && flagOn) {
+      cls = 'ai-badge subtle';
+      content = '&#9679;';
+      label = 'Trace AI content (' + score.toFixed(1) + '%) — click for details';
+    } else {
+      return '';
     }
-    if (v === 'WARN_LOW' && flagOn) {
-      return `<span class="ai-badge subtle" title="Trace AI content (${score.toFixed(1)}%)" aria-label="Trace AI content">&#9679;</span>`;
+    const id = registerEnvelope(r);
+    return `<button type="button" class="${cls}" data-env-id="${id}" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${content}</button>`;
+  }
+
+  // ============================================================
+  //   DIAGNOSTICS POPOVER ("fail loudly" surface for the AI filter)
+  // ============================================================
+  // Listens at document level so it works for badges injected by ANY renderer
+  // (including ones added after the listener was wired up).
+  document.addEventListener('click', (e) => {
+    const badge = e.target.closest && e.target.closest('.ai-badge');
+    if (badge && badge.dataset.envId) {
+      e.preventDefault();
+      e.stopPropagation();
+      const r = ENVELOPE_REGISTRY.get(badge.dataset.envId);
+      openDiagnosticsPopover(badge, r);
+      return;
     }
-    return '';
+    // Click outside an open popover → close it.
+    if (!e.target.closest || !e.target.closest('.ai-popover')) {
+      closeDiagnosticsPopover();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDiagnosticsPopover();
+  });
+
+  let _openPopoverEl = null;
+  function closeDiagnosticsPopover() {
+    if (_openPopoverEl) {
+      _openPopoverEl.remove();
+      _openPopoverEl = null;
+    }
+  }
+
+  function openDiagnosticsPopover(anchorEl, r) {
+    closeDiagnosticsPopover();
+    const env = (r && r.aiEnvelope) || null;
+    const score = r ? r.aiScore : null;
+    const verdict = r ? (r.verdict || deriveVerdict(score)) : 'CLEAN';
+    const pop = document.createElement('div');
+    pop.className = 'ai-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'AI filter diagnostics');
+    pop.innerHTML = renderDiagnostics(env, score, verdict, r);
+    document.body.appendChild(pop);
+
+    // Position next to the badge, clamped to viewport
+    const rect = anchorEl.getBoundingClientRect();
+    const popW = 340;
+    let left = rect.left + window.scrollX;
+    if (left + popW > window.scrollX + window.innerWidth - 8) {
+      left = window.scrollX + window.innerWidth - popW - 8;
+    }
+    if (left < window.scrollX + 8) left = window.scrollX + 8;
+    pop.style.left = left + 'px';
+    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.width = popW + 'px';
+
+    // Close button inside
+    const closeBtn = pop.querySelector('.ai-popover-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeDiagnosticsPopover);
+
+    _openPopoverEl = pop;
+  }
+
+  function openHiddenListPopover(anchorEl, hiddenList) {
+    closeDiagnosticsPopover();
+    const pop = document.createElement('div');
+    pop.className = 'ai-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'What was filtered');
+    const items = hiddenList.slice(0, 12).map(r => {
+      const env = r.aiEnvelope || {};
+      const score = r.aiScore == null ? '?' : (+r.aiScore).toFixed(1) + '%';
+      const id = registerEnvelope(r);
+      const w0 = (env.warnings && env.warnings[0]) ? env.warnings[0] : '';
+      return `<li class="hidden-item">
+        <button type="button" class="ai-badge blocked" data-env-id="${id}" title="Click for full diagnostics">&#9888; ${escapeHtml(score)}</button>
+        <div class="hidden-item-meta">
+          <div class="hidden-item-title">${escapeHtml(r.title || '(untitled)')}</div>
+          <div class="hidden-item-host">${escapeHtml(hostFor(r.url) || r.url || '')}${w0 ? ' &middot; ' + escapeHtml(w0) : ''}</div>
+        </div>
+      </li>`;
+    }).join('');
+    const more = hiddenList.length > 12 ? `<div class="ai-popover-empty">&hellip; and ${hiddenList.length - 12} more</div>` : '';
+    pop.innerHTML = `
+      <div class="ai-popover-titlebar">
+        <span class="ai-popover-title">${hiddenList.length} result${hiddenList.length === 1 ? '' : 's'} hidden</span>
+        <button type="button" class="ai-popover-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="ai-popover-body">
+        <div class="ai-popover-because">Each item scored above the ${FILTER_THRESHOLD}% block threshold. Click a badge for the full breakdown.</div>
+        <ul class="ai-popover-list ai-popover-hidden-list">${items}</ul>
+        ${more}
+        <div class="ai-popover-foot">Lower the threshold or toggle the filter off in the controls above.</div>
+      </div>
+    `;
+    document.body.appendChild(pop);
+    const rect = anchorEl.getBoundingClientRect();
+    const popW = 380;
+    let left = rect.left + window.scrollX;
+    if (left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
+    if (left < window.scrollX + 8) left = window.scrollX + 8;
+    pop.style.left = left + 'px';
+    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.width = popW + 'px';
+    pop.querySelector('.ai-popover-close').addEventListener('click', closeDiagnosticsPopover);
+    _openPopoverEl = pop;
+  }
+
+  function renderDiagnostics(env, score, verdict, r) {
+    const VERDICT_LABEL = {
+      BLOCK:     { tag: 'Filtered',  why: 'Score above the ' + FILTER_THRESHOLD + '% block threshold.', cls: 'v-block'   },
+      WARN_HIGH: { tag: 'Flagged',   why: 'Score in the ' + WARN_HIGH_THRESHOLD + '–' + FILTER_THRESHOLD + '% high-warning band.', cls: 'v-warn-h' },
+      WARN_LOW:  { tag: 'Trace',     why: 'Score above 0% but below the ' + WARN_HIGH_THRESHOLD + '% high-warning threshold.', cls: 'v-warn-l' },
+      CLEAN:     { tag: 'Clean',     why: 'Score of 0% or analyzer returned no signal.', cls: 'v-clean' },
+    };
+    const meta = VERDICT_LABEL[verdict] || VERDICT_LABEL.CLEAN;
+
+    const rows = [];
+    rows.push(`<div class="ai-popover-row"><span class="lbl">Verdict</span><span class="val ${meta.cls}">${meta.tag}</span></div>`);
+    rows.push(`<div class="ai-popover-row"><span class="lbl">AI score</span><span class="val">${score == null ? '—' : score.toFixed(1) + '%'}</span></div>`);
+    if (env && env.base_score != null) {
+      rows.push(`<div class="ai-popover-row"><span class="lbl">Base score</span><span class="val">${(+env.base_score).toFixed(1)}%</span></div>`);
+    }
+    if (env && env.override) {
+      rows.push(`<div class="ai-popover-row"><span class="lbl">Override</span><span class="val v-override">${escapeHtml(env.override)}</span></div>`);
+    }
+    if (env && env.source) {
+      rows.push(`<div class="ai-popover-row"><span class="lbl">Source</span><span class="val">${escapeHtml(env.source)}</span></div>`);
+    }
+    if (env && env.cache) {
+      rows.push(`<div class="ai-popover-row"><span class="lbl">Cache</span><span class="val">${escapeHtml(env.cache)}</span></div>`);
+    }
+
+    // Modality breakdown
+    let modalityHtml = '';
+    if (env && env.modality) {
+      const m = env.modality;
+      const w = env.weights || { text: 0, image: 0 };
+      const parts = [];
+      if (m.text) {
+        parts.push(`<div class="ai-popover-modal"><div class="m-hdr">Text &middot; weight ${(w.text*100).toFixed(0)}%</div>` +
+          `<div class="m-row">Raw: <b>${(+m.text.score).toFixed(1)}%</b> &middot; effective: <b>${(+m.text.score_effective).toFixed(1)}%</b></div>` +
+          `<div class="m-row">Confidence: ${(+m.text.confidence * 100).toFixed(0)}% &middot; ${m.text.chars} chars &middot; backend: ${escapeHtml(m.text.backend || '?')}</div>` +
+        `</div>`);
+      }
+      if (m.image) {
+        parts.push(`<div class="ai-popover-modal"><div class="m-hdr">Image &middot; weight ${(w.image*100).toFixed(0)}%</div>` +
+          `<div class="m-row">Aggregate: <b>${(+m.image.score).toFixed(1)}%</b>${m.image.score_effective != null ? ' &middot; effective: <b>' + (+m.image.score_effective).toFixed(1) + '%</b>' : ''}</div>` +
+          `<div class="m-row">${m.image.count || 1} image${m.image.count === 1 ? '' : 's'}${m.image.confidence != null ? ' &middot; confidence: ' + (+m.image.confidence * 100).toFixed(0) + '%' : ''}${m.image.max_effective != null ? ' &middot; max: ' + (+m.image.max_effective).toFixed(1) + '%' : ''}</div>` +
+        `</div>`);
+      }
+      if (parts.length) modalityHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Modality breakdown</div>${parts.join('')}</div>`;
+    }
+
+    // Provenance (C2PA) summary
+    let provenanceHtml = '';
+    if (env && env.provenance && env.provenance.length > 0) {
+      const items = env.provenance.slice(0, 4).map(p =>
+        `<li>${escapeHtml(p.status || 'unknown')}${p.signer ? ' &middot; signer: ' + escapeHtml(p.signer) : ''}${p.origin ? ' &middot; origin: ' + escapeHtml(p.origin) : ''}</li>`
+      ).join('');
+      provenanceHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Provenance (C2PA)</div><ul class="ai-popover-list">${items}</ul></div>`;
+    }
+
+    // Warnings — the "fail loudly" array
+    let warningsHtml = '';
+    const warnings = env && env.warnings ? env.warnings : [];
+    if (warnings.length > 0) {
+      const items = warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('');
+      warningsHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Diagnostics</div><ul class="ai-popover-list ai-popover-warnings">${items}</ul></div>`;
+    } else if (env) {
+      warningsHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Diagnostics</div><div class="ai-popover-empty">No warnings &mdash; analyzer ran cleanly.</div></div>`;
+    }
+
+    const thresholdsHtml = env && env.thresholds
+      ? `<div class="ai-popover-foot">Thresholds &middot; block&gt;${env.thresholds.BLOCK}% &middot; warn-high&ge;${env.thresholds.WARN_HIGH}% &middot; warn-low&gt;${env.thresholds.WARN_LOW}%</div>`
+      : `<div class="ai-popover-foot">Thresholds &middot; block&gt;${FILTER_THRESHOLD}% &middot; warn-high&ge;${WARN_HIGH_THRESHOLD}%</div>`;
+
+    const linkUrl = r && r.url ? `<a class="ai-popover-link" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">${escapeHtml(hostFor(r.url) || r.url)}</a>` : '';
+
+    return `
+      <div class="ai-popover-titlebar">
+        <span class="ai-popover-title">AI filter &mdash; why ${meta.tag.toLowerCase()}?</span>
+        <button type="button" class="ai-popover-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="ai-popover-body">
+        <div class="ai-popover-because">${escapeHtml(meta.why)}</div>
+        ${linkUrl}
+        <div class="ai-popover-rows">${rows.join('')}</div>
+        ${modalityHtml}
+        ${provenanceHtml}
+        ${warningsHtml}
+        ${thresholdsHtml}
+      </div>
+    `;
   }
 
   function deriveVerdict(score) {
@@ -426,4 +719,38 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     }[c]));
   }
   function escapeAttr(s) { return escapeHtml(s); }
+
+  // ============================================================
+  //   FALLBACK HELPERS — keep tabs renderable when the Worker
+  //   returns web-shaped results regardless of ?tab=
+  // ============================================================
+  const PALETTE = ['#5a7a9a','#8a6a4a','#4a7a5a','#a06040','#605070','#8a8a4a','#4a6080','#7a5060','#506a4a','#90704a','#4a5a70','#a06080'];
+  function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return Math.abs(h); }
+  function seedFor(r, i) { return (r && (r.url || r.title)) || ('idx-' + i); }
+  function hostFor(u) {
+    try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; }
+  }
+  function initials(title) {
+    if (!title) return '?';
+    const t = String(title).trim();
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return t.slice(0, 2).toUpperCase();
+  }
+  function placeholderSvg(seed, w, h, label) {
+    const bg = PALETTE[hashStr(String(seed)) % PALETTE.length];
+    const text = String(label || '?').slice(0, 14);
+    const fontSize = Math.round(Math.min(w, h) * (text.length > 4 ? 0.18 : 0.34));
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">' +
+        '<rect width="' + w + '" height="' + h + '" fill="' + bg + '"/>' +
+        '<text x="' + (w/2) + '" y="' + (h/2) + '" text-anchor="middle" dominant-baseline="central" ' +
+          'font-family="MS Sans Serif, Tahoma, sans-serif" font-size="' + fontSize + '" ' +
+          'font-weight="bold" fill="rgba(255,255,255,0.85)">' + escapeXmlText(text) + '</text>' +
+      '</svg>';
+    return 'data:image/svg+xml;base64,' + btoa(svg);
+  }
+  function escapeXmlText(s) {
+    return String(s).replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'}[c]));
+  }
 })();
