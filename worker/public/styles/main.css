@@ -239,14 +239,105 @@ body.adtab-collapsed .results-main {
   align-items: center;
   padding-top: 14vh;
 }
+/* Hero header row: dial-up animation flush-left, wordmark flush-right.
+   Width matches the search-panel below so left/right edges line up. */
+.hero-header {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+}
 .wordmark {
   font-family: "Pixelated MS Sans Serif", "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif;
   font-weight: normal;
-  font-size: 72px;
+  font-size: 56px;
   color: var(--win-silver);          /* same grey as "Advertisement 1" */
-  margin: 0 0 32px;
-  text-align: center;
+  margin: 0;
+  text-align: right;
   line-height: 1;
+  white-space: nowrap;
+}
+/* ============================================================
+   DIAL-UP ANIMATION — inline SVG Win95 "Dialing Progress" dialog
+   ============================================================ */
+.dialup-anim {
+  width: 220px;
+  background: var(--win-silver);
+  font-family: "MS Sans Serif", Tahoma, sans-serif;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white),
+    inset -2px -2px 0 var(--win-silver-dark),
+    inset  2px  2px 0 var(--win-silver-light);
+  flex-shrink: 0;
+  user-select: none;
+}
+.dialup-titlebar {
+  background: var(--win-navy);
+  color: var(--win-white);
+  font-weight: bold;
+  font-size: 11px;
+  padding: 2px 4px 2px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dialup-x {
+  background: var(--win-silver);
+  color: var(--win-black);
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  box-shadow:
+    inset -1px -1px 0 var(--win-black),
+    inset  1px  1px 0 var(--win-white);
+}
+.dialup-body {
+  background: var(--win-teal);
+  padding: 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 70px;
+}
+.dialup-earth { width: 44px; height: 44px; animation: dialup-earth-wobble 2.4s ease-in-out infinite; }
+.dialup-pc    { width: 56px; height: 44px; }
+.dialup-dots {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+}
+.dialup-dots span {
+  width: 5px;
+  height: 5px;
+  background: var(--win-white);
+  border: 1px solid var(--win-black);
+  opacity: 0.25;
+  animation: dialup-dot-pulse 1.2s linear infinite;
+}
+.dialup-dots span:nth-child(1) { animation-delay: 0s; }
+.dialup-dots span:nth-child(2) { animation-delay: 0.18s; }
+.dialup-dots span:nth-child(3) { animation-delay: 0.36s; }
+.dialup-dots span:nth-child(4) { animation-delay: 0.54s; }
+.dialup-dots span:nth-child(5) { animation-delay: 0.72s; }
+@keyframes dialup-dot-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  20%      { opacity: 1;    transform: scale(1.3); background: #ffff80; }
+  60%      { opacity: 0.25; transform: scale(1); background: var(--win-white); }
+}
+@keyframes dialup-earth-wobble {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-2px) rotate(2deg); }
 }
 /* ============================================================
    SEARCH PANEL — authentic Win95 silver chrome
