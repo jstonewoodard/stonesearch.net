@@ -124,50 +124,49 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     const data = await res.json();
     const items = data.results || [];
 
-    // Only Web / News / Forums (text content) go through the AI analyzer.
-    // Images/Videos already have aiLikely from the per-modality mock.
-    if (tab === 'all' || tab === 'web' || tab === 'news' || tab === 'forums') {
-      return Promise.all(items.map(async (item) => {
-        try {
-          const a = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: item.url, snippet: item.snippet || '', title: item.title }),
-          });
-          const j = await a.json();
-          // Preserve the FULL envelope under aiEnvelope so the diagnostics
-          // popover can surface warnings / weights / modality / provenance /
-          // override / base_score / thresholds — the "fail loudly" details.
-          return {
-            ...item,
-            aiScore: j.aiScore,
-            verdict: j.verdict || deriveVerdict(j.aiScore),
-            modality: j.modality || null,
-            aiEnvelope: j,
-          };
-        } catch (e) {
-          return {
-            ...item,
-            aiScore: null,
-            aiEnvelope: { aiScore: null, verdict: 'CLEAN', warnings: ['fetch:analyze-failed:' + e.message], source: 'degraded' },
-          };
-        }
-      }));
-    }
-    // For images/videos, use aiLikely directly. Synthesize a minimal envelope
-    // so the popover still has something to show.
-    return items.map(it => ({
-      ...it,
-      aiScore: it.aiLikely,
-      verdict: deriveVerdict(it.aiLikely),
-      aiEnvelope: {
-        aiScore: it.aiLikely,
-        verdict: deriveVerdict(it.aiLikely),
-        modality: { text: null, image: { score: it.aiLikely, count: 1 } },
-        weights: { text: 0, image: 1 },
-        source: 'per-result-mock',
-        warnings: [],
-      },
+    // Every tab gets routed through /api/analyze with whatever text we have
+    // on the result (title + snippet). The live Worker returns web-shaped
+    // Brave results regardless of ?tab=, so they all have text to score.
+    // For dev-server runs where image/video results have a pre-computed
+    // aiLikely, we honor that as a fast path and skip the round-trip.
+    return Promise.all(items.map(async (item) => {
+      // Dev-server mock fast path: pre-computed score available.
+      if (typeof item.aiLikely === 'number') {
+        return {
+          ...item,
+          aiScore: item.aiLikely,
+          verdict: deriveVerdict(item.aiLikely),
+          aiEnvelope: {
+            aiScore: item.aiLikely,
+            verdict: deriveVerdict(item.aiLikely),
+            modality: { text: null, image: { score: item.aiLikely, count: 1 } },
+            weights: { text: 0, image: 1 },
+            source: 'per-modality-mock (dev only)',
+            warnings: [],
+          },
+        };
+      }
+      try {
+        const a = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.url, snippet: item.snippet || '', title: item.title }),
+        });
+        const j = await a.json();
+        return {
+          ...item,
+          aiScore: j.aiScore,
+          verdict: j.verdict || deriveVerdict(j.aiScore),
+          modality: j.modality || null,
+          aiEnvelope: j,
+        };
+      } catch (e) {
+        return {
+          ...item,
+          aiScore: null,
+          aiEnvelope: { aiScore: null, verdict: 'CLEAN', warnings: ['fetch:analyze-failed:' + e.message], source: 'degraded' },
+        };
+      }
     }));
   }
 
