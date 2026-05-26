@@ -27,6 +27,7 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   const statsEl      = document.getElementById('result-stats');
   const filterStatus = document.getElementById('filter-status');
   const blockedBar   = document.getElementById('blocked-bar');
+  const spellSuggest = document.getElementById('spell-suggest');
   const filterToggle = document.getElementById('filter-toggle');
   const flagToggle   = document.getElementById('flag-toggle');
   const knowledgeEl  = document.getElementById('knowledge-card');
@@ -123,6 +124,12 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     if (!res.ok) throw new Error('Search request failed: ' + res.status);
     const data = await res.json();
     const items = data.results || [];
+
+    // "Did you mean..." — render the spell correction from Brave's
+    // query.altered field (passed through by the Worker when it lands).
+    // Tolerates several shape variants: data.altered (string), data.spellcheck,
+    // data.spellSuggest, data.query?.altered. Hides itself if absent.
+    renderSpellSuggest(data.altered || data.spellcheck || data.spellSuggest || (data.query && data.query.altered) || null);
 
     // Every tab gets routed through /api/analyze with whatever text we have
     // on the result (title + snippet). The live Worker returns web-shaped
@@ -583,6 +590,23 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     if (closeBtn) closeBtn.addEventListener('click', closeDiagnosticsPopover);
 
     _openPopoverEl = pop;
+  }
+
+  function renderSpellSuggest(suggestion) {
+    if (!spellSuggest) return;
+    // suggestion can be: string (the corrected query) or null/undefined.
+    if (!suggestion || typeof suggestion !== 'string' || suggestion.trim() === '' || suggestion.trim().toLowerCase() === q.trim().toLowerCase()) {
+      spellSuggest.style.display = 'none';
+      spellSuggest.innerHTML = '';
+      return;
+    }
+    const corrected = suggestion.trim();
+    // Build a results.html link at the corrected query, preserving current tab/toggles.
+    const p = new URLSearchParams(window.location.search);
+    p.set('q', corrected);
+    spellSuggest.style.display = 'block';
+    spellSuggest.innerHTML =
+      'Did you mean: <a href="/results.html?' + escapeAttr(p.toString()) + '" id="spell-take"><i>' + escapeHtml(corrected) + '</i></a>?';
   }
 
   function renderBlockedBar(blockedAll) {

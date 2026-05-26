@@ -422,6 +422,20 @@ body.adtab-collapsed .results-main {
 }
 .filter-status-banner .status-icon { color: var(--win-navy); font-weight: bold; font-size: 13px; }
 .filter-status-banner a { color: var(--win-navy); text-decoration: underline; margin-left: auto; }
+/* "Did you mean..." spell correction (sits above the AI-filter banners) */
+.spell-suggest {
+  color: var(--win-black);
+  font-size: 13px;
+  padding: 4px 2px 8px;
+  font-style: normal;
+}
+.spell-suggest a {
+  color: #c00;
+  font-weight: bold;
+  font-style: italic;
+  text-decoration: underline;
+}
+.spell-suggest a:hover { color: #a00; }
 /* ============================================================
    BLOCKED-RESULTS BAR — persistent strip under the search nav
    Lists every BLOCKed (>25% AI) result as a clickable chip.

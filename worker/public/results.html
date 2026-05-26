@@ -59,7 +59,7 @@
       <a href="/" class="mini-wordmark">Stone Search</a>
       <form id="results-form" class="search-panel results-search" action="/results.html" method="get">
         <div class="search-panel-inner">
-          <input type="text" name="q" id="q" class="search-input" autocomplete="off" />
+          <input type="text" name="q" id="q" class="search-input" autocomplete="off" spellcheck="true" autocorrect="on" autocapitalize="off" />
           <input type="hidden" name="tab" id="tab-input" value="all" />
           <button type="submit" class="enter-btn">Enter</button>
         </div>
@@ -106,6 +106,10 @@
 
         <!-- Knowledge card (compact) -->
         <div id="knowledge-card" class="knowledge-card" style="display:none;"></div>
+
+        <!-- "Did you mean..." spell-correction (populated from /api/search
+             when the backend surfaces Brave's query.altered field). -->
+        <div id="spell-suggest" class="spell-suggest" style="display:none;"></div>
 
         <!-- AI-filter status banner (strict mode / no detector configured) -->
         <div id="filter-status" class="filter-status-banner" style="display:none;"></div>
