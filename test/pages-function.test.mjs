@@ -113,20 +113,24 @@ await test('Empty body does not crash', async () => {
   assert.equal(res.status, 200);
 });
 
-await test('Strict mode (no ALLOW_MOCK, no real backend) -> aiScore: null', async () => {
+await test('No API keys → heuristic backend fires (Path 1 always-available default)', async () => {
+  // Pre-Path-1, no keys meant strict-mode null. Path 1 added the in-Worker
+  // heuristic ensemble as the new default real backend, so production
+  // without paid keys still returns real scores. Strict-mode null is now
+  // only reachable when something explicitly forces all-mocks (see
+  // test/strict-mode.test.js for that direct path).
   const res = await onRequestPost({
-    request: mockRequest({ url: 'https://example.com', text: 'hello world' }),
-    env: {}, // no HIVE_API_KEY, no HF_API_TOKEN, no ALLOW_MOCK -> strict mode
+    request: mockRequest({ url: 'https://example.com', text: 'It\'s important to note that this is a comprehensive test of the multifaceted heuristic landscape. Let\'s delve into the intricate paradigm. In conclusion, the realm is profound. Moreover, the tapestry of signals fires correctly.' }),
+    env: {}, // no API keys, no ALLOW_MOCK
   });
   const body = await res.json();
-  assert.equal(body.aiScore, null);
-  assert.equal(body.verdict, 'CLEAN');
-  assert.equal(body.source, 'no-detector');
-  assert.deepEqual(body.warnings, ['no-real-backend:strict-mode']);
+  assert.notEqual(body.aiScore, null, 'heuristic should produce a real score');
+  assert.equal(body.modality.text.backend, 'text-heuristic');
+  assert.notEqual(body.source, 'no-detector');
 });
 
-await test('Source is "mock" when no HIVE_API_KEY', async () => {
-  const { body } = await callFn({ url: 'https://example.com', text: 'hello world' }, {});
+await test('ALLOW_MOCK=1 with no other keys → mock backend (source: mock)', async () => {
+  const { body } = await callFn({ url: 'https://example.com', text: 'hello world' }, { ALLOW_MOCK: '1' });
   assert.equal(body.source, 'mock');
 });
 

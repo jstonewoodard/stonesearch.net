@@ -26,6 +26,7 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   const listEl       = document.getElementById('results-list');
   const statsEl      = document.getElementById('result-stats');
   const filterBanner = document.getElementById('filter-summary');
+  const filterStatus = document.getElementById('filter-status');
   const filterToggle = document.getElementById('filter-toggle');
   const flagToggle   = document.getElementById('flag-toggle');
   const knowledgeEl  = document.getElementById('knowledge-card');
@@ -196,6 +197,7 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     let hidden = 0;
     let flagged = 0;
     let clean = 0;
+    let unscored = 0;
     const visible = [];
     const hiddenList = [];
 
@@ -203,9 +205,15 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
       const v = r.verdict || deriveVerdict(r.aiScore);
       if (filterOn && filterApplicable && v === 'BLOCK') { hidden++; hiddenList.push(r); continue; }
       visible.push(r);
+      if (r.aiScore == null) unscored++;
       if (v === 'WARN_HIGH' || v === 'WARN_LOW') flagged++;
       else clean++;
     }
+
+    // Strict-mode detection: every visible result came back unscored. Show a
+    // single banner instead of plastering "AI: ?" across every card.
+    _bulkUnscored = filterApplicable && visible.length > 0 && unscored === visible.length;
+    renderFilterStatusBanner(_bulkUnscored, results);
 
     // Banner for hidden items
     if (hidden > 0 && filterOn && filterApplicable) {
@@ -481,11 +489,18 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     return id;
   }
 
+  // Set by render() before per-result aiBadge calls. When true, the analyzer
+  // returned null for every visible item (strict mode, no detector configured).
+  // In that case we suppress per-result "AI: ?" badges to avoid plastering the
+  // entire page with shrugs — a single status banner explains it instead.
+  let _bulkUnscored = false;
+
   function aiBadge(r, flagOn) {
     const score = r.aiScore;
     const v = r.verdict || deriveVerdict(score);
     let cls, content, label;
     if (score == null) {
+      if (_bulkUnscored) return ''; // banner handles the explanation
       cls = 'ai-badge unknown';
       content = 'AI: ?';
       label = 'AI score unavailable — click for details';
@@ -569,6 +584,91 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     const closeBtn = pop.querySelector('.ai-popover-close');
     if (closeBtn) closeBtn.addEventListener('click', closeDiagnosticsPopover);
 
+    _openPopoverEl = pop;
+  }
+
+  function renderFilterStatusBanner(bulkUnscored, results) {
+    if (!filterStatus) return;
+    if (!bulkUnscored) { filterStatus.style.display = 'none'; filterStatus.innerHTML = ''; return; }
+    // Pull a representative envelope so the popover surfaces real warnings.
+    const sample = results.find(r => r && r.aiEnvelope) || null;
+    const id = registerEnvelope({
+      title: 'AI filter status',
+      url: '',
+      aiScore: null,
+      verdict: 'CLEAN',
+      aiEnvelope: (sample && sample.aiEnvelope) || {
+        aiScore: null,
+        verdict: 'CLEAN',
+        source: 'no-detector',
+        warnings: ['no-real-backend:strict-mode'],
+      },
+    });
+    filterStatus.style.display = 'block';
+    filterStatus.innerHTML =
+      '<span class="status-icon" aria-hidden="true">&#9432;</span> ' +
+      '<strong>AI filter idle</strong> &mdash; no detector configured, all results shown unfiltered. ' +
+      '<a href="#" data-status-env-id="' + id + '">Why?</a>';
+    const link = filterStatus.querySelector('a[data-status-env-id]');
+    if (link) {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openStrictModeExplainer(e.currentTarget, ENVELOPE_REGISTRY.get(link.dataset.statusEnvId));
+      });
+    }
+  }
+
+  function openStrictModeExplainer(anchorEl, r) {
+    closeDiagnosticsPopover();
+    const env = (r && r.aiEnvelope) || {};
+    const warnings = env.warnings || [];
+    const warningsHtml = warnings.length
+      ? '<ul class="ai-popover-list ai-popover-warnings">' + warnings.map(w => '<li>' + escapeHtml(w) + '</li>').join('') + '</ul>'
+      : '<div class="ai-popover-empty">No warnings emitted &mdash; analyzer just declined to score.</div>';
+    const pop = document.createElement('div');
+    pop.className = 'ai-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'AI filter status');
+    pop.innerHTML =
+      '<div class="ai-popover-titlebar">' +
+        '<span class="ai-popover-title">AI filter &mdash; idle (strict mode)</span>' +
+        '<button type="button" class="ai-popover-close" aria-label="Close">&times;</button>' +
+      '</div>' +
+      '<div class="ai-popover-body">' +
+        '<div class="ai-popover-because">' +
+          'The Stone Search AI detector refused to score these results because no real detection backend is configured on the Worker. ' +
+          'Strict mode is on by default in production &mdash; the analyzer would rather return <b>null</b> than invent a score. ' +
+        '</div>' +
+        '<div class="ai-popover-section">' +
+          '<div class="ai-popover-section-hdr">Source</div>' +
+          '<div>' + escapeHtml(env.source || 'no-detector') + '</div>' +
+        '</div>' +
+        '<div class="ai-popover-section">' +
+          '<div class="ai-popover-section-hdr">Diagnostics</div>' +
+          warningsHtml +
+        '</div>' +
+        '<div class="ai-popover-section">' +
+          '<div class="ai-popover-section-hdr">How to enable detection</div>' +
+          '<ol class="ai-popover-howto">' +
+            '<li>Set <code>HF_API_TOKEN</code> (free Hugging Face tier) <em>or</em> <code>HIVE_API_KEY</code> (paid) on the Worker:<br>' +
+              '<code>wrangler secret put HF_API_TOKEN</code></li>' +
+            '<li>Redeploy: <code>npm run deploy</code></li>' +
+            '<li>Or for dev/preview only, set <code>ALLOW_MOCK=1</code> to fall back to mock scores.</li>' +
+          '</ol>' +
+        '</div>' +
+        '<div class="ai-popover-foot">Until a backend is configured, all results pass through and the AI filter shows no badges.</div>' +
+      '</div>';
+    document.body.appendChild(pop);
+    const rect = anchorEl.getBoundingClientRect();
+    const popW = 380;
+    let left = rect.left + window.scrollX;
+    if (left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
+    if (left < window.scrollX + 8) left = window.scrollX + 8;
+    pop.style.left = left + 'px';
+    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.width = popW + 'px';
+    pop.querySelector('.ai-popover-close').addEventListener('click', closeDiagnosticsPopover);
     _openPopoverEl = pop;
   }
 

@@ -405,6 +405,36 @@ body.adtab-collapsed .results-main {
   font-size: 11px;
 }
 .filtered-banner a { color: var(--win-navy); }
+/* Status banner — analyzer is idle / strict mode (no detector configured) */
+.filter-status-banner {
+  background: var(--win-silver);
+  color: var(--win-black);
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top:    1px solid var(--win-silver-light);
+  border-left:   1px solid var(--win-silver-light);
+  border-right:  1px solid var(--win-silver-dark);
+  border-bottom: 1px solid var(--win-silver-dark);
+}
+.filter-status-banner .status-icon { color: var(--win-navy); font-weight: bold; font-size: 13px; }
+.filter-status-banner a { color: var(--win-navy); text-decoration: underline; margin-left: auto; }
+/* Howto inside the strict-mode popover */
+.ai-popover-howto {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.ai-popover-howto code {
+  background: var(--win-silver);
+  padding: 0 3px;
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+}
 /* Outer panel that wraps the whole results list */
 .results-panel {
   background: var(--win-white);
