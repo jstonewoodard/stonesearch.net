@@ -25,7 +25,6 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   const tabInput     = document.getElementById('tab-input');
   const listEl       = document.getElementById('results-list');
   const statsEl      = document.getElementById('result-stats');
-  const filterBanner = document.getElementById('filter-summary');
   const filterStatus = document.getElementById('filter-status');
   const blockedBar   = document.getElementById('blocked-bar');
   const filterToggle = document.getElementById('filter-toggle');
@@ -195,19 +194,17 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     const filterOn = filterToggle.checked;
     const flagOn   = flagToggle.checked;
 
-    let hidden = 0;
     let flagged = 0;
     let clean = 0;
     let unscored = 0;
     const visible = [];
-    const hiddenList = [];     // items hidden from view by the filter (banner)
     const blockedAll = [];     // all BLOCK-verdict items (blocked-bar uses this,
                                // independent of whether filter toggle is on)
 
     for (const r of results) {
       const v = r.verdict || deriveVerdict(r.aiScore);
       if (filterApplicable && v === 'BLOCK') blockedAll.push(r);
-      if (filterOn && filterApplicable && v === 'BLOCK') { hidden++; hiddenList.push(r); continue; }
+      if (filterOn && filterApplicable && v === 'BLOCK') continue;
       visible.push(r);
       if (r.aiScore == null) unscored++;
       if (v === 'WARN_HIGH' || v === 'WARN_LOW') flagged++;
@@ -225,26 +222,11 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     // banner above; this bar always shows what got filtered.
     renderBlockedBar(blockedAll);
 
-    // Banner for hidden items
-    if (hidden > 0 && filterOn && filterApplicable) {
-      filterBanner.style.display = 'block';
-      filterBanner.innerHTML =
-        '&#9888; <strong>' + hidden + '</strong> result' + (hidden === 1 ? '' : 's') +
-        ' hidden for scoring over ' + FILTER_THRESHOLD + '% AI-generated. ' +
-        '<a href="#" id="show-hidden">Show anyway</a> &middot; ' +
-        '<a href="#" id="why-hidden">Why?</a>';
-      filterBanner.querySelector('#show-hidden').addEventListener('click', (e) => {
-        e.preventDefault();
-        filterToggle.checked = false;
-        render(allResults);
-      });
-      filterBanner.querySelector('#why-hidden').addEventListener('click', (e) => {
-        e.preventDefault();
-        openHiddenListPopover(e.currentTarget, hiddenList);
-      });
-    } else {
-      filterBanner.style.display = 'none';
-    }
+    // Note: the "N results hidden / Show anyway / Why?" banner was removed
+    // 2026-05-26 (user request) — the blocked-results bar above already
+    // shows each blocked item with its own click-to-open diagnostics, and
+    // the "Hide >25% AI" toggle in the results-meta-controls row still
+    // works as the kill-switch.
 
     // Stats line
     statsEl.innerHTML =
@@ -717,50 +699,10 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     _openPopoverEl = pop;
   }
 
-  function openHiddenListPopover(anchorEl, hiddenList) {
-    closeDiagnosticsPopover();
-    const pop = document.createElement('div');
-    pop.className = 'ai-popover';
-    pop.setAttribute('role', 'dialog');
-    pop.setAttribute('aria-label', 'What was filtered');
-    const items = hiddenList.slice(0, 12).map(r => {
-      const env = r.aiEnvelope || {};
-      const score = r.aiScore == null ? '?' : (+r.aiScore).toFixed(1) + '%';
-      const id = registerEnvelope(r);
-      const w0 = (env.warnings && env.warnings[0]) ? env.warnings[0] : '';
-      return `<li class="hidden-item">
-        <button type="button" class="ai-badge blocked" data-env-id="${id}" title="Click for full diagnostics">&#9888; ${escapeHtml(score)}</button>
-        <div class="hidden-item-meta">
-          <div class="hidden-item-title">${escapeHtml(r.title || '(untitled)')}</div>
-          <div class="hidden-item-host">${escapeHtml(hostFor(r.url) || r.url || '')}${w0 ? ' &middot; ' + escapeHtml(w0) : ''}</div>
-        </div>
-      </li>`;
-    }).join('');
-    const more = hiddenList.length > 12 ? `<div class="ai-popover-empty">&hellip; and ${hiddenList.length - 12} more</div>` : '';
-    pop.innerHTML = `
-      <div class="ai-popover-titlebar">
-        <span class="ai-popover-title">${hiddenList.length} result${hiddenList.length === 1 ? '' : 's'} hidden</span>
-        <button type="button" class="ai-popover-close" aria-label="Close">&times;</button>
-      </div>
-      <div class="ai-popover-body">
-        <div class="ai-popover-because">Each item scored above the ${FILTER_THRESHOLD}% block threshold. Click a badge for the full breakdown.</div>
-        <ul class="ai-popover-list ai-popover-hidden-list">${items}</ul>
-        ${more}
-        <div class="ai-popover-foot">Lower the threshold or toggle the filter off in the controls above.</div>
-      </div>
-    `;
-    document.body.appendChild(pop);
-    const rect = anchorEl.getBoundingClientRect();
-    const popW = 380;
-    let left = rect.left + window.scrollX;
-    if (left + popW > window.scrollX + window.innerWidth - 8) left = window.scrollX + window.innerWidth - popW - 8;
-    if (left < window.scrollX + 8) left = window.scrollX + 8;
-    pop.style.left = left + 'px';
-    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
-    pop.style.width = popW + 'px';
-    pop.querySelector('.ai-popover-close').addEventListener('click', closeDiagnosticsPopover);
-    _openPopoverEl = pop;
-  }
+  // Note: openHiddenListPopover() was removed 2026-05-26 along with the
+  // #filter-summary banner that called it — the blocked-results bar at the
+  // top of the page now surfaces every hidden item with its own
+  // click-to-open diagnostics, so the bulk popover became redundant.
 
   function renderDiagnostics(env, score, verdict, r) {
     // Em-dashes are real chars here, NOT &mdash;, because this text gets
