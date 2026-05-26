@@ -763,11 +763,13 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   }
 
   function renderDiagnostics(env, score, verdict, r) {
+    // Em-dashes are real chars here, NOT &mdash;, because this text gets
+    // escapeHtml-ed before being inserted (so entities would double-escape).
     const VERDICT_LABEL = {
-      BLOCK:     { tag: 'Blocked',   why: 'Scored above the ' + FILTER_THRESHOLD + '% block threshold &mdash; the analyzer is confident this page is largely AI-generated. Hidden from results by default.', cls: 'v-block'   },
-      WARN_HIGH: { tag: 'Flagged',   why: 'Scored in the ' + WARN_HIGH_THRESHOLD + '–' + FILTER_THRESHOLD + '% band &mdash; signs of AI involvement but not enough confidence to block. Shown with a yellow badge.', cls: 'v-warn-h' },
-      WARN_LOW:  { tag: 'Likely human', why: 'Scored under ' + WARN_HIGH_THRESHOLD + '% &mdash; trace AI signal but most likely human-written. Shown with a green badge.', cls: 'v-warn-l' },
-      CLEAN:     { tag: 'Likely human', why: 'Scored at or near 0% &mdash; analyzer found no meaningful AI signal. Shown with a green badge.', cls: 'v-clean' },
+      BLOCK:     { tag: 'Blocked',      why: 'Scored above the ' + FILTER_THRESHOLD + '% block threshold — the analyzer is confident this page is largely AI-generated. Hidden from results by default.', cls: 'v-block'   },
+      WARN_HIGH: { tag: 'Flagged',      why: 'Scored in the ' + WARN_HIGH_THRESHOLD + '–' + FILTER_THRESHOLD + '% band — signs of AI involvement but not enough confidence to block. Shown with a yellow badge.', cls: 'v-warn-h' },
+      WARN_LOW:  { tag: 'Likely human', why: 'Scored under ' + WARN_HIGH_THRESHOLD + '% — trace AI signal but most likely human-written. Shown with a green badge.', cls: 'v-warn-l' },
+      CLEAN:     { tag: 'Likely human', why: 'Scored at or near 0% — analyzer found no meaningful AI signal. Shown with a green badge.', cls: 'v-clean' },
     };
     const meta = VERDICT_LABEL[verdict] || VERDICT_LABEL.CLEAN;
 
