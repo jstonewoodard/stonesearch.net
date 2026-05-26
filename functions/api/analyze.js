@@ -22,7 +22,7 @@
    ============================================================ */
 
 import { createAnalyzer, kvCache } from '../_lib/ai-filter/analyzer.mjs';
-import { textMock, makeTextHive, makeTextHuggingFace, textHeuristic, imageMock } from '../_lib/ai-filter/backends.mjs';
+import { textMock, makeTextHive, makeTextHuggingFace, textHeuristic, chainTextDetectors, imageMock } from '../_lib/ai-filter/backends.mjs';
 
 export async function onRequestPost({ request, env }) {
   let body = {};
@@ -40,14 +40,19 @@ export async function onRequestPost({ request, env }) {
   //      rate-limited.
   //   3. in-Worker heuristic ensemble (Path 1 of the in-house stack) —
   //      pure JS, zero cost, zero data egress, ~75-80% accuracy on bulk
-  //      web text. Always available; production fallback when no paid
-  //      key is configured. Strict mode treats this as a real backend.
+  //      web text. ALWAYS in the chain so we never return null for text.
   //   4. text-mock — only useful behind ALLOW_MOCK=1 in dev/preview.
-  const textBackend =
-        env.HF_API_TOKEN ? makeTextHuggingFace(env.HF_API_TOKEN, env.HF_TEXT_MODEL)
-      : env.HIVE_API_KEY ? makeTextHive(env.HIVE_API_KEY)
-      : (env.ALLOW_MOCK === '1' || env.ALLOW_MOCK === 'true') ? textMock
-      : textHeuristic;
+  //
+  // Wrapped in chainTextDetectors() so it falls through at RUNTIME
+  // (not just config time). If HF returns null or errors, Hive tries
+  // next; if Hive is absent or fails, heuristic catches. Every attempt
+  // is recorded in raw.chain_attempts.
+  const chain = [];
+  if (env.HF_API_TOKEN) chain.push(makeTextHuggingFace(env.HF_API_TOKEN, env.HF_TEXT_MODEL));
+  if (env.HIVE_API_KEY) chain.push(makeTextHive(env.HIVE_API_KEY));
+  if (env.ALLOW_MOCK === '1' || env.ALLOW_MOCK === 'true') chain.push(textMock);
+  chain.push(textHeuristic);                  // ALWAYS-ON safety net
+  const textBackend = chainTextDetectors(chain);
   const imageBackend = imageMock; // swap for Sightengine/Hive Visual when wired
 
   // Strict mode: in production, refuse to return mock scores. Set

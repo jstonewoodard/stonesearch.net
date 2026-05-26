@@ -135,7 +135,9 @@ function createAnalyzer({ textBackend, imageBackend, cache, strict = false } = {
             score: r.score,
             confidence: r.confidence ?? 0.5,
             chars: text.length,
-            backend: textBackend.name || r.backend || 'text',
+            // Prefer the winning detector's own name (e.g. 'text-heuristic',
+            // 'hf-text:...') over the wrapper's name (e.g. 'chain:foo->bar').
+            backend: r.backend || textBackend.name || 'text',
           };
         } else {
           warnings.push(`text-detector:no-score:${r.error || r.skipped || ''}`);
@@ -195,7 +197,9 @@ function createAnalyzer({ textBackend, imageBackend, cache, strict = false } = {
       })),
       warnings,
       cache: 'miss',
-      source: textBackend?.name === 'text-mock' ? 'mock' : 'live',
+      // Source = 'mock' iff the WINNING text detector was the mock (chain
+      // wrappers don't count). Live otherwise.
+      source: textResult?.backend === 'text-mock' ? 'mock' : 'live',
     };
 
     _cache.set(cacheKey, envelope);

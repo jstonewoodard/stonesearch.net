@@ -271,6 +271,50 @@ export const textHeuristic = {
   },
 };
 
+// ---------- text: runtime fallthrough chain ----------
+// Wraps an ordered list of detectors; first one to return a real
+// score wins. Records every attempt in raw.chain_attempts. As
+// long as textHeuristic is last in the chain, this never returns
+// null for text.
+export function chainTextDetectors(detectors) {
+  const list = (detectors || []).filter(Boolean);
+  return {
+    name: 'chain:' + list.map(d => d.name).join('->'),
+    modality: 'text',
+    async detect(text, opts) {
+      const attempts = [];
+      for (const d of list) {
+        try {
+          const r = await d.detect(text, opts);
+          attempts.push({
+            backend: d.name,
+            score: r.score,
+            confidence: r.confidence,
+            error: r.error || null,
+            skipped: r.skipped || null,
+          });
+          if (r.score != null) {
+            return {
+              score: r.score,
+              confidence: r.confidence,
+              backend: d.name,
+              raw: { ...(r.raw || {}), chain_attempts: attempts },
+            };
+          }
+        } catch (err) {
+          attempts.push({ backend: d.name, error: err.message });
+        }
+      }
+      return {
+        score: null,
+        confidence: 0,
+        backend: 'chain:all-failed',
+        raw: { chain_attempts: attempts },
+      };
+    },
+  };
+}
+
 // ---------- image: deterministic mock ----------
 export const imageMock = {
   name: 'image-mock',
