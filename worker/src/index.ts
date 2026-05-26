@@ -11,7 +11,7 @@
  */
 
 import { createAnalyzer, kvCache } from './ai-filter/analyzer.js';
-import { textMock, makeTextHive, imageMock } from './ai-filter/backends.js';
+import { textMock, makeTextHive, makeTextHuggingFace, textHeuristic, chainTextDetectors, imageMock, type TextDetector } from './ai-filter/backends.js';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -23,6 +23,9 @@ export interface Env {
   GOOGLE_CSE_ID?: string;
   GOOGLE_CSE_API_KEY?: string;
   HIVE_API_KEY?: string;       // AI-content text detector (optional; falls back to mock)
+  HF_API_TOKEN?: string;       // Hugging Face Inference API token (optional; free-tier text detector)
+  HF_TEXT_MODEL?: string;      // Override default HF text-detection model (e.g. 'roberta-large-openai-detector')
+  ALLOW_MOCK?: string;         // '1' or 'true' to permit mock-only scores (dev/preview only)
   ENVIRONMENT: string;
   CACHE_TTL_SECONDS: string;
   RATELIMIT_PER_MINUTE: string;
@@ -188,12 +191,29 @@ async function handleAnalyze(request: Request, env: Env, _ctx: ExecutionContext)
     // Tolerate empty body — analyzer handles missing fields gracefully.
   }
 
-  const textBackend  = env.HIVE_API_KEY ? makeTextHive(env.HIVE_API_KEY) : textMock;
+  // Text backend chain (runtime fallthrough). First detector to return
+  // a non-null score wins; subsequent ones get skipped. textHeuristic
+  // is ALWAYS in the chain as the always-available safety net, so we
+  // never return aiScore:null for text — even if HF + Hive both fail.
+  // Every attempt is recorded in modality.text.raw.chain_attempts so
+  // the UI popover can show what was tried and why.
+  const chain: TextDetector[] = [];
+  if (env.HF_API_TOKEN) chain.push(makeTextHuggingFace(env.HF_API_TOKEN, env.HF_TEXT_MODEL));
+  if (env.HIVE_API_KEY) chain.push(makeTextHive(env.HIVE_API_KEY));
+  if ((env as any).ALLOW_MOCK === '1' || (env as any).ALLOW_MOCK === 'true') chain.push(textMock);
+  chain.push(textHeuristic);                  // ALWAYS-ON safety net
+  const textBackend = chainTextDetectors(chain);
   const imageBackend = imageMock;
+
+  // Strict mode (production default): refuse to return mock scores. Set
+  // ALLOW_MOCK=1 as a Worker var to permit them for dev/preview.
+  const strict = (env as any).ALLOW_MOCK !== '1' && (env as any).ALLOW_MOCK !== 'true';
+
   const analyzer = createAnalyzer({
     textBackend,
     imageBackend,
     cache: env.CACHE ? kvCache(env.CACHE) : undefined,
+    strict,
   });
 
   try {

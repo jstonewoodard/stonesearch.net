@@ -55,7 +55,8 @@ export interface ImageSignal {
 }
 
 export interface PageScoreEnvelope {
-  aiScore: number;
+  // null when strict mode declined to score (no real backend configured)
+  aiScore: number | null;
   verdict: Verdict;
   modality: {
     text:  null | { score: number; score_effective: number; confidence: number; chars: number; backend: string | null };

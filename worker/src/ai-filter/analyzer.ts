@@ -59,6 +59,15 @@ const DEFAULT_OPTIONS: Required<AnalyzeOptions> = {
   cacheTtlSeconds: 7 * 24 * 60 * 60,
 };
 
+// Names of mock backends. Keep in sync with backends.ts.
+const MOCK_BACKEND_NAMES: ReadonlySet<string> = new Set(['text-mock', 'image-mock']);
+
+function isMock(backend?: { name: string }): boolean {
+  return !backend || MOCK_BACKEND_NAMES.has(backend.name);
+}
+
+import { THRESHOLDS } from './scorer.js';
+
 export interface Analyzer {
   analyze(input: AnalyzeInput, options?: AnalyzeOptions): Promise<AnalysisEnvelope>;
   cache: CacheAdapter;
@@ -68,14 +77,39 @@ export function createAnalyzer(deps: {
   textBackend?: TextDetector;
   imageBackend?: ImageDetector;
   cache?: CacheAdapter;
+  /**
+   * Fail-loud when both backends are mocks: return aiScore:null +
+   * verdict:'CLEAN' + 'no-real-backend:strict-mode' warning. Production
+   * callers should pass true.
+   */
+  strict?: boolean;
 }): Analyzer {
   const _cache = deps.cache ?? new MemoryCache();
   const textBackend = deps.textBackend;
   const imageBackend = deps.imageBackend;
+  const strict = deps.strict ?? false;
 
   async function analyze(input: AnalyzeInput, options: AnalyzeOptions = {}): Promise<AnalysisEnvelope> {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     const warnings: string[] = [];
+
+    // 0. Strict-mode short-circuit: no real detector configured
+    if (strict && isMock(textBackend) && isMock(imageBackend)) {
+      return {
+        aiScore: null,
+        verdict: 'CLEAN',
+        modality: { text: null, image: null },
+        weights: { text: 0, image: 0 },
+        override: null,
+        base_score: 0,
+        thresholds: THRESHOLDS,
+        url: input.url,
+        provenance: [],
+        warnings: ['no-real-backend:strict-mode'],
+        cache: 'miss',
+        source: 'no-detector',
+      };
+    }
 
     // 1. Fetch + extract
     let text: string | undefined = input.text;
@@ -126,7 +160,8 @@ export function createAnalyzer(deps: {
             score: r.score,
             confidence: r.confidence ?? 0.5,
             chars: text.length,
-            backend: textBackend.name || r.backend || 'text',
+            // Prefer the winning detector's own name over the chain wrapper's name.
+            backend: r.backend || textBackend.name || 'text',
           };
         } else {
           warnings.push(`text-detector:no-score:${r.error || r.skipped || ''}`);
@@ -178,7 +213,8 @@ export function createAnalyzer(deps: {
       })),
       warnings,
       cache: 'miss',
-      source: textBackend?.name === 'text-mock' ? 'mock' : 'live',
+      // Source = 'mock' iff the winning text detector was the mock.
+      source: textResult?.backend === 'text-mock' ? 'mock' : 'live',
     };
 
     await _cache.set(cacheKey, envelope, opts.cacheTtlSeconds);

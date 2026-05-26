@@ -101,6 +101,269 @@ function extractHiveScore(json: any): { score: number | null; confidence: number
   return { score: null, confidence: 0 };
 }
 
+// ---------- text: Hugging Face Inference API ----------
+// Free-tier alternative to Hive. See backends/text-huggingface.js in
+// stonesearch.net for full doc — TypeScript version mirrors it exactly.
+const HF_DEFAULT_MODEL = 'Hello-SimpleAI/chatgpt-detector-roberta';
+const HF_AI_LABEL_RX = /ai|fake|machine|generated|chatgpt|gpt/i;
+
+export function makeTextHuggingFace(apiToken: string | undefined, modelName?: string): TextDetector {
+  const model = modelName || HF_DEFAULT_MODEL;
+  return {
+    name: `hf-text:${model}`,
+    modality: 'text',
+    async detect(text: string, opts: { timeoutMs?: number } = {}): Promise<DetectorResult> {
+      const timeoutMs = opts.timeoutMs ?? 4000;
+      if (!apiToken) return { score: null, confidence: 0, backend: this.name, skipped: 'no-api-token' };
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const r = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+            'x-wait-for-model': 'true',
+          },
+          body: JSON.stringify({ inputs: String(text || '').slice(0, 6000) }),
+        });
+        const json: any = await r.json();
+        const extracted = extractHFScore(json);
+        if (extracted.score == null) {
+          return { score: null, confidence: 0, backend: this.name, raw: json,
+                   error: extracted.error || 'unparsed-response' };
+        }
+        return { score: extracted.score, confidence: extracted.confidence, raw: json, backend: this.name };
+      } catch (err) {
+        return { score: null, confidence: 0, error: (err as Error).message, backend: this.name };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+}
+
+function extractHFScore(json: any): { score: number | null; confidence: number; error?: string } {
+  if (json && json.error) return { score: null, confidence: 0, error: String(json.error) };
+  const inner: any[] | null = Array.isArray(json) && Array.isArray(json[0]) ? json[0]
+                            : Array.isArray(json) ? json
+                            : null;
+  if (!inner) return { score: null, confidence: 0, error: 'unexpected-shape' };
+  let pAI: number | null = null;
+  for (const cls of inner) {
+    if (typeof cls?.score !== 'number') continue;
+    if (HF_AI_LABEL_RX.test(String(cls.label))) pAI = cls.score;
+  }
+  if (pAI == null) return { score: null, confidence: 0, error: 'no-ai-label-found' };
+  const score = Math.round(pAI * 1000) / 10;
+  const confidence = Math.min(1, Math.abs(pAI - 0.5) * 2 + 0.5);
+  return { score, confidence };
+}
+
+// ---------- text: in-Worker heuristic ensemble ----------
+// Path 1 of the in-house detection stack. Pure JS, zero deps, zero
+// marginal cost. Math byte-identical to text-heuristic.js (CJS) and
+// detectTextHeuristic in backends.mjs (ESM). See
+// stonesearch.net/api/ai-filter/backends/text-heuristic.js for full doc.
+
+const HEUR_LLM_TELLS: readonly string[] = Object.freeze([
+  'delve','delving','tapestry','landscape','realm','embark','embarking',
+  'leverage','leveraging','harness','harnessing','foster','fostering',
+  'robust','comprehensive','intricate','intricacies','profound',
+  'multifaceted','paradigm','holistic','navigate','navigating',
+  'underscore','underscores','underscoring','pivotal','crucial',
+  'invaluable','meticulous','meticulously','streamline','streamlining',
+  "it's important to note","it's worth noting","it's worth mentioning",
+  'in this article','in this post',"let's dive","let's explore",
+  'navigate the landscape','in the realm of','in the world of',
+  'harness the power','foster a sense','play a crucial role',
+  'a testament to','stand the test of time',"in today's digital age",
+  'in conclusion','to summarize','in summary',
+  'certainly!','absolutely!','great question',"i'd be happy to help",
+  "here's a",'here are some',
+]);
+const HEUR_CONCLUSION: readonly string[] = Object.freeze([
+  'in conclusion','to summarize','to conclude','in summary','overall,',
+  'ultimately,','to wrap up','in closing','final thoughts','all in all','to sum up',
+]);
+const HEUR_TRANSITION: readonly string[] = Object.freeze([
+  'however','moreover','furthermore','additionally','consequently','therefore',
+  'thus','hence','indeed','notably','specifically','particularly','similarly',
+  'likewise','nonetheless','nevertheless','subsequently','accordingly',
+]);
+const HEUR_HEDGING: readonly string[] = Object.freeze([
+  "it's worth noting","it's important to note",'that said','having said that',
+  'with that in mind',"it's important to remember",'keep in mind',
+  'on the other hand',"while it's true",
+]);
+const HEUR_WEIGHTS = Object.freeze({
+  llmTells: 0.25, burstiness: 0.15, emDash: 0.15, conclusion: 0.10,
+  starterRepeat: 0.10, transition: 0.10, parallelism: 0.05, hedging: 0.05, vocab: 0.05,
+} as const);
+const heurClamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+const heurEsc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function heurSents(t: string): string[] {
+  return String(t).split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(s => s.length > 0);
+}
+function heurWords(t: string): string[] { return String(t).toLowerCase().match(/[a-z0-9'\-]+/g) || []; }
+
+export interface HeuristicResult {
+  score: number;
+  confidence: number;
+  signals: Record<string, number>;
+}
+
+export function detectTextHeuristic(text: string): HeuristicResult {
+  const t = String(text || '');
+  const tl = t.toLowerCase();
+  const sents = heurSents(t);
+  const wl = heurWords(t);
+  const wc = wl.length;
+  const signals: Record<string, number> = {
+    llmTells: (() => {
+      if (wc === 0) return 0;
+      let hits = 0;
+      for (const tell of HEUR_LLM_TELLS) {
+        const m = tl.match(new RegExp(`(?:^|[^a-z])${heurEsc(tell)}(?:[^a-z]|$)`, 'g'));
+        if (m) hits += m.length;
+      }
+      return heurClamp((hits / wc) * 1000 / 5, 0, 1);
+    })(),
+    burstiness: (() => {
+      if (sents.length < 4) return 0;
+      const L = sents.map(s => (s.match(/\S+/g) || []).length);
+      const m = L.reduce((a,b)=>a+b,0)/L.length;
+      const v = L.reduce((a,b)=>a+(b-m)**2,0)/L.length;
+      return heurClamp(1 - (Math.sqrt(v) - 3) / 10, 0, 1);
+    })(),
+    emDash: (() => {
+      if (wc === 0) return 0;
+      const m = t.match(/—|–|--/g);
+      return heurClamp(((m ? m.length : 0) / wc * 1000 - 2) / 16, 0, 1);
+    })(),
+    conclusion: (() => {
+      let h = 0; for (const m of HEUR_CONCLUSION) if (tl.indexOf(m) !== -1) h++;
+      return heurClamp(h / 2, 0, 1);
+    })(),
+    starterRepeat: (() => {
+      if (sents.length < 5) return 0;
+      const st: Record<string, number> = {};
+      for (const s of sents) {
+        const f = (s.match(/^\S+/) || [''])[0].toLowerCase();
+        if (f) st[f] = (st[f] || 0) + 1;
+      }
+      const counts = Object.values(st);
+      if (!counts.length) return 0;
+      return heurClamp((Math.max(...counts) / sents.length - 0.10) / 0.20, 0, 1);
+    })(),
+    transition: (() => {
+      if (wc === 0) return 0;
+      let h = 0;
+      for (const w of HEUR_TRANSITION) {
+        const m = tl.match(new RegExp(`(?:^|[^a-z])${w}(?:[^a-z]|$)`, 'g'));
+        if (m) h += m.length;
+      }
+      return heurClamp((h / wc * 100) / 2, 0, 1);
+    })(),
+    parallelism: (() => {
+      const lines = t.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 4) return 0;
+      let li = 0;
+      for (const l of lines) if (/^(\d+\.\s|[-*•·]\s)/.test(l)) li++;
+      return heurClamp((li / lines.length) / 0.30, 0, 1);
+    })(),
+    hedging: (() => {
+      let h = 0; for (const ph of HEUR_HEDGING) if (tl.indexOf(ph) !== -1) h++;
+      return heurClamp(h / 3, 0, 1);
+    })(),
+    vocab: (() => {
+      if (wl.length < 50) return 0;
+      let lw = 0; for (const w of wl) if (w.length >= 7) lw++;
+      return heurClamp((lw / wl.length - 0.20) / 0.15, 0, 1);
+    })(),
+  };
+  let agg = 0;
+  for (const k of Object.keys(HEUR_WEIGHTS) as (keyof typeof HEUR_WEIGHTS)[]) {
+    agg += signals[k] * HEUR_WEIGHTS[k];
+  }
+  const score = Math.round(agg * 1000) / 10;
+  const lc = heurClamp(t.length / 2000, 0.4, 1.0);
+  const sv = Object.values(signals);
+  const sm = sv.reduce((a,b)=>a+b,0)/sv.length;
+  const svar = sv.reduce((a,b)=>a+(b-sm)**2,0)/sv.length;
+  const agreement = heurClamp(1 - Math.sqrt(svar) * 2, 0, 1);
+  const confidence = Math.round((lc * (0.7 + 0.3 * agreement)) * 100) / 100;
+  return { score, confidence, signals };
+}
+
+export const textHeuristic: TextDetector = {
+  name: 'text-heuristic',
+  modality: 'text',
+  async detect(text: string): Promise<DetectorResult> {
+    const r = detectTextHeuristic(text);
+    return {
+      score: r.score,
+      confidence: r.confidence,
+      backend: 'text-heuristic',
+      raw: { signals: r.signals, word_count: heurWords(text).length, sentence_count: heurSents(text).length },
+    };
+  },
+};
+
+// ---------- text: runtime fallthrough chain ----------
+// Wraps an ordered list of detectors; first one to return a real
+// score wins. Records every attempt in raw.chain_attempts. As
+// long as textHeuristic is last in the chain, this never returns
+// null for text — production strict-mode-null for text-modality
+// is unreachable.
+interface ChainAttempt {
+  backend: string;
+  score?: number | null;
+  confidence?: number;
+  error?: string | null;
+  skipped?: string | null;
+}
+
+export function chainTextDetectors(detectors: (TextDetector | undefined | null)[]): TextDetector {
+  const list = (detectors || []).filter((d): d is TextDetector => !!d);
+  return {
+    name: 'chain:' + list.map(d => d.name).join('->'),
+    modality: 'text',
+    async detect(text: string, opts?: { timeoutMs?: number }): Promise<DetectorResult> {
+      const attempts: ChainAttempt[] = [];
+      for (const d of list) {
+        try {
+          const r = await d.detect(text, opts);
+          attempts.push({
+            backend: d.name,
+            score: r.score,
+            confidence: r.confidence,
+            error: r.error || null,
+            skipped: r.skipped || null,
+          });
+          if (r.score != null) {
+            return {
+              score: r.score,
+              confidence: r.confidence,
+              backend: d.name,
+              raw: { ...((r.raw as Record<string, unknown>) || {}), chain_attempts: attempts },
+            };
+          }
+        } catch (err) {
+          attempts.push({ backend: d.name, error: (err as Error).message });
+        }
+      }
+      return {
+        score: null,
+        confidence: 0,
+        backend: 'chain:all-failed',
+        raw: { chain_attempts: attempts },
+      };
+    },
+  };
+}
+
 // ---------- image: deterministic mock ----------
 export const imageMock: ImageDetector = {
   name: 'image-mock',
