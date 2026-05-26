@@ -810,31 +810,15 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
       if (parts.length) modalityHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Modality breakdown</div>${parts.join('')}</div>`;
     }
 
-    // Provenance (C2PA) summary
-    let provenanceHtml = '';
-    if (env && env.provenance && env.provenance.length > 0) {
-      const items = env.provenance.slice(0, 4).map(p =>
-        `<li>${escapeHtml(p.status || 'unknown')}${p.signer ? ' &middot; signer: ' + escapeHtml(p.signer) : ''}${p.origin ? ' &middot; origin: ' + escapeHtml(p.origin) : ''}</li>`
-      ).join('');
-      provenanceHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Provenance (C2PA)</div><ul class="ai-popover-list">${items}</ul></div>`;
-    }
-
-    // Warnings — the "fail loudly" array
-    let warningsHtml = '';
-    const warnings = env && env.warnings ? env.warnings : [];
-    if (warnings.length > 0) {
-      const items = warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('');
-      warningsHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Diagnostics</div><ul class="ai-popover-list ai-popover-warnings">${items}</ul></div>`;
-    } else if (env) {
-      warningsHtml = `<div class="ai-popover-section"><div class="ai-popover-section-hdr">Diagnostics</div><div class="ai-popover-empty">No warnings &mdash; analyzer ran cleanly.</div></div>`;
-    }
-
     const thresholdsHtml = env && env.thresholds
       ? `<div class="ai-popover-foot">Thresholds &middot; block&gt;${env.thresholds.BLOCK}% &middot; warn-high&ge;${env.thresholds.WARN_HIGH}% &middot; warn-low&gt;${env.thresholds.WARN_LOW}%</div>`
       : `<div class="ai-popover-foot">Thresholds &middot; block&gt;${FILTER_THRESHOLD}% &middot; warn-high&ge;${WARN_HIGH_THRESHOLD}%</div>`;
 
     const linkUrl = r && r.url ? `<a class="ai-popover-link" href="${escapeAttr(r.url)}" target="_blank" rel="noopener">${escapeHtml(hostFor(r.url) || r.url)}</a>` : '';
 
+    // Provenance (C2PA) and Diagnostics sections intentionally removed per
+    // user request 2026-05-26 — popover now shows verdict + score + modality
+    // breakdown only.
     return `
       <div class="ai-popover-titlebar">
         <span class="ai-popover-title">AI filter &mdash; why ${meta.tag.toLowerCase()}?</span>
@@ -845,8 +829,6 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
         ${linkUrl}
         <div class="ai-popover-rows">${rows.join('')}</div>
         ${modalityHtml}
-        ${provenanceHtml}
-        ${warningsHtml}
         ${thresholdsHtml}
       </div>
     `;
