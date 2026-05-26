@@ -82,6 +82,10 @@
       </div>
     </nav>
 
+    <!-- Blocked-results bar: chips for every BLOCKed (>25% AI) result.
+         Each chip opens the standard diagnostics popover. Hidden when empty. -->
+    <div id="blocked-bar" class="blocked-bar" style="display:none;" aria-label="Results blocked by AI filter"></div>
+
     <div class="results-body" id="results-body">
 
       <div class="results-col">
@@ -95,7 +99,7 @@
             </label>
             <label class="quiet-toggle">
               <input type="checkbox" id="flag-toggle" checked />
-              <span>Flag 5–25%</span>
+              <span>Show AI badges</span>
             </label>
           </span>
         </div>

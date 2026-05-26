@@ -422,6 +422,70 @@ body.adtab-collapsed .results-main {
 }
 .filter-status-banner .status-icon { color: var(--win-navy); font-weight: bold; font-size: 13px; }
 .filter-status-banner a { color: var(--win-navy); text-decoration: underline; margin-left: auto; }
+/* ============================================================
+   BLOCKED-RESULTS BAR — persistent strip under the search nav
+   Lists every BLOCKed (>25% AI) result as a clickable chip.
+   ============================================================ */
+.blocked-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  background: #fff5d0;
+  border-top:    1px solid var(--win-silver-light);
+  border-left:   1px solid var(--win-silver-light);
+  border-right:  1px solid var(--win-silver-dark);
+  border-bottom: 1px solid var(--win-silver-dark);
+  font-size: 11px;
+  min-height: 26px;
+}
+.blocked-bar-label {
+  flex-shrink: 0;
+  color: #800000;
+  font-weight: bold;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.blocked-bar-icon { font-size: 13px; }
+.blocked-bar-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px; /* room for scrollbar */
+}
+.blocked-bar-chips::-webkit-scrollbar { height: 8px; }
+.blocked-bar-chips::-webkit-scrollbar-thumb {
+  background: var(--win-silver-dark);
+  border: 1px solid var(--win-silver-light);
+}
+button.blocked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  margin: 0;
+  font-size: 10px;
+  font-family: inherit;
+  flex-shrink: 0;
+  max-width: 200px;
+}
+.blocked-chip .chip-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+.blocked-chip .chip-score {
+  font-weight: bold;
+  flex-shrink: 0;
+}
 /* Howto inside the strict-mode popover */
 .ai-popover-howto {
   margin: 0;
@@ -488,9 +552,9 @@ body.adtab-collapsed .results-main {
   border-right:  1px solid var(--win-silver-dark);
   border-bottom: 1px solid var(--win-silver-dark);
 }
-.ai-badge.clean   { background: #d0ffd0; color: #006600; }
-.ai-badge.flagged { background: var(--win-yellow); color: #806000; }
-.ai-badge.blocked { background: #ffd0d0; color: #800000; }
+.ai-badge.clean   { background: #c8f0c8; color: #064c06; }
+.ai-badge.flagged { background: #fff0a0; color: #6a4a00; }
+.ai-badge.blocked { background: #ffc8c8; color: #6a0000; }
 .ai-badge.unknown { background: var(--win-silver); color: var(--win-silver-dark); }
 /* All clickable badges become button-shaped: tight cursor + active depress */
 button.ai-badge {
@@ -592,10 +656,10 @@ button.ai-badge:focus {
 }
 .ai-popover-row .lbl { color: var(--win-silver-dark); }
 .ai-popover-row .val { font-weight: bold; }
-.ai-popover-row .val.v-block  { color: #800000; }
-.ai-popover-row .val.v-warn-h { color: #806000; }
-.ai-popover-row .val.v-warn-l { color: #555; }
-.ai-popover-row .val.v-clean  { color: #006600; }
+.ai-popover-row .val.v-block  { color: #6a0000; }
+.ai-popover-row .val.v-warn-h { color: #6a4a00; }
+.ai-popover-row .val.v-warn-l { color: #064c06; }
+.ai-popover-row .val.v-clean  { color: #064c06; }
 .ai-popover-row .val.v-override { color: #800040; }
 .ai-popover-section {
   margin-top: 6px;

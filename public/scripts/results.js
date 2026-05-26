@@ -27,6 +27,7 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   const statsEl      = document.getElementById('result-stats');
   const filterBanner = document.getElementById('filter-summary');
   const filterStatus = document.getElementById('filter-status');
+  const blockedBar   = document.getElementById('blocked-bar');
   const filterToggle = document.getElementById('filter-toggle');
   const flagToggle   = document.getElementById('flag-toggle');
   const knowledgeEl  = document.getElementById('knowledge-card');
@@ -199,10 +200,13 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     let clean = 0;
     let unscored = 0;
     const visible = [];
-    const hiddenList = [];
+    const hiddenList = [];     // items hidden from view by the filter (banner)
+    const blockedAll = [];     // all BLOCK-verdict items (blocked-bar uses this,
+                               // independent of whether filter toggle is on)
 
     for (const r of results) {
       const v = r.verdict || deriveVerdict(r.aiScore);
+      if (filterApplicable && v === 'BLOCK') blockedAll.push(r);
       if (filterOn && filterApplicable && v === 'BLOCK') { hidden++; hiddenList.push(r); continue; }
       visible.push(r);
       if (r.aiScore == null) unscored++;
@@ -214,6 +218,12 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     // single banner instead of plastering "AI: ?" across every card.
     _bulkUnscored = filterApplicable && visible.length > 0 && unscored === visible.length;
     renderFilterStatusBanner(_bulkUnscored, results);
+
+    // Persistent blocked-results bar under the search nav. Surfaces every
+    // BLOCKed (>25% AI) item as a clickable chip — each opens the standard
+    // diagnostics popover. Independent of the "Show anyway" toggle in the
+    // banner above; this bar always shows what got filtered.
+    renderBlockedBar(blockedAll);
 
     // Banner for hidden items
     if (hidden > 0 && filterOn && filterApplicable) {
@@ -496,30 +506,37 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
   let _bulkUnscored = false;
 
   function aiBadge(r, flagOn) {
+    // flagOn now controls whether ANY inline AI badge shows. When off, the
+    // user sees a clean result list with no AI annotation. Default = on.
+    if (!flagOn) return '';
     const score = r.aiScore;
     const v = r.verdict || deriveVerdict(score);
     let cls, content, label;
     if (score == null) {
-      if (_bulkUnscored) return ''; // banner handles the explanation
+      // Strict mode / no detector — banner handles bulk case, suppress inline.
+      // For one-off failures (e.g. analyze fetch error on a single item) show
+      // a small unknown badge so user can click for the failure reason.
+      if (_bulkUnscored) return '';
       cls = 'ai-badge unknown';
       content = 'AI: ?';
       label = 'AI score unavailable — click for details';
     } else if (v === 'BLOCK') {
-      // BLOCK results are usually filtered out of view, but show inline when
-      // the user has clicked "Show anyway" on the filtered banner.
+      // BLOCK results normally filtered out of view; appears inline only when
+      // user clicked "Show anyway" on the filtered banner OR they're rendered
+      // in the blocked-results bar at the top.
       cls = 'ai-badge blocked';
       content = '&#9888; AI: ' + score.toFixed(0) + '%';
       label = 'Filtered: above ' + FILTER_THRESHOLD + '% AI — click for details';
-    } else if (v === 'WARN_HIGH' && flagOn) {
+    } else if (v === 'WARN_HIGH') {
+      // 10–25%: yellow, always shown
       cls = 'ai-badge flagged';
       content = '&#9888; AI: ' + score.toFixed(0) + '%';
       label = 'Possibly AI-generated (' + score.toFixed(1) + '%) — click for details';
-    } else if (v === 'WARN_LOW' && flagOn) {
-      cls = 'ai-badge subtle';
-      content = '&#9679;';
-      label = 'Trace AI content (' + score.toFixed(1) + '%) — click for details';
     } else {
-      return '';
+      // <10% (CLEAN or WARN_LOW): green, always shown
+      cls = 'ai-badge clean';
+      content = '&#10003; AI: ' + score.toFixed(0) + '%';
+      label = 'Human-likely (' + score.toFixed(1) + '%) — click for details';
     }
     const id = registerEnvelope(r);
     return `<button type="button" class="${cls}" data-env-id="${id}" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${content}</button>`;
@@ -585,6 +602,34 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
     if (closeBtn) closeBtn.addEventListener('click', closeDiagnosticsPopover);
 
     _openPopoverEl = pop;
+  }
+
+  function renderBlockedBar(blockedAll) {
+    if (!blockedBar) return;
+    if (!blockedAll || blockedAll.length === 0) {
+      blockedBar.style.display = 'none';
+      blockedBar.innerHTML = '';
+      return;
+    }
+    const chips = blockedAll.map(r => {
+      const id    = registerEnvelope(r);
+      const score = r.aiScore == null ? '?' : r.aiScore.toFixed(0) + '%';
+      const host  = hostFor(r.url) || (r.title ? r.title.slice(0, 24) : 'unknown');
+      const title = r.title || host;
+      return `<button type="button" class="blocked-chip ai-badge blocked" data-env-id="${id}" ` +
+             `title="${escapeAttr(title)} — click for details" ` +
+             `aria-label="${escapeAttr(title)} — blocked at ${score} AI">` +
+             `<span class="chip-host">${escapeHtml(host)}</span>` +
+             `<span class="chip-score">&#9888; ${score}</span>` +
+             `</button>`;
+    }).join('');
+    blockedBar.style.display = 'flex';
+    blockedBar.innerHTML =
+      `<span class="blocked-bar-label">` +
+        `<span class="blocked-bar-icon" aria-hidden="true">&#9888;</span> ` +
+        `<strong>${blockedAll.length}</strong> blocked &gt;${FILTER_THRESHOLD}% AI:` +
+      `</span>` +
+      `<div class="blocked-bar-chips">${chips}</div>`;
   }
 
   function renderFilterStatusBanner(bulkUnscored, results) {
@@ -719,10 +764,10 @@ const VALID_TABS = ['all', 'images', 'videos', 'news', 'forums', 'shopping', 'ma
 
   function renderDiagnostics(env, score, verdict, r) {
     const VERDICT_LABEL = {
-      BLOCK:     { tag: 'Filtered',  why: 'Score above the ' + FILTER_THRESHOLD + '% block threshold.', cls: 'v-block'   },
-      WARN_HIGH: { tag: 'Flagged',   why: 'Score in the ' + WARN_HIGH_THRESHOLD + '–' + FILTER_THRESHOLD + '% high-warning band.', cls: 'v-warn-h' },
-      WARN_LOW:  { tag: 'Trace',     why: 'Score above 0% but below the ' + WARN_HIGH_THRESHOLD + '% high-warning threshold.', cls: 'v-warn-l' },
-      CLEAN:     { tag: 'Clean',     why: 'Score of 0% or analyzer returned no signal.', cls: 'v-clean' },
+      BLOCK:     { tag: 'Blocked',   why: 'Scored above the ' + FILTER_THRESHOLD + '% block threshold &mdash; the analyzer is confident this page is largely AI-generated. Hidden from results by default.', cls: 'v-block'   },
+      WARN_HIGH: { tag: 'Flagged',   why: 'Scored in the ' + WARN_HIGH_THRESHOLD + '–' + FILTER_THRESHOLD + '% band &mdash; signs of AI involvement but not enough confidence to block. Shown with a yellow badge.', cls: 'v-warn-h' },
+      WARN_LOW:  { tag: 'Likely human', why: 'Scored under ' + WARN_HIGH_THRESHOLD + '% &mdash; trace AI signal but most likely human-written. Shown with a green badge.', cls: 'v-warn-l' },
+      CLEAN:     { tag: 'Likely human', why: 'Scored at or near 0% &mdash; analyzer found no meaningful AI signal. Shown with a green badge.', cls: 'v-clean' },
     };
     const meta = VERDICT_LABEL[verdict] || VERDICT_LABEL.CLEAN;
 
